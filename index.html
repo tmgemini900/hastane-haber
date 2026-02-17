@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Haber Yönetim Sistemi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #F7F8FA; --surface: #ffffff; --border: #E8ECF0; --border-soft: #F1F5F9;
+    --text: #0F172A; --text-mid: #475569; --text-soft: #94A3B8;
+    --blue: #1A56DB; --blue-bg: #EFF6FF; --blue-border: #BFDBFE;
+    --red: #EF4444; --red-bg: #FEF2F2; --red-border: #FECACA;
+    --green: #10B981; --green-bg: #ECFDF5; --green-border: #A7F3D0;
+    --amber: #F59E0B; --amber-bg: #FFFBEB; --amber-border: #FDE68A;
+    --slate: #64748B;
+    --radius-lg: 16px; --shadow: 0 4px 20px rgba(0,0,0,0.06); --shadow-lg: 0 8px 32px rgba(0,0,0,0.10);
+  }
+  body { font-family: 'DM Sans', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; font-size: 14px; }
+  ::-webkit-scrollbar { width: 5px; } ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+
+  #loading-screen { position: fixed; inset: 0; background: #fff; z-index: 9999; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; }
+  .spinner { width: 40px; height: 40px; border: 3px solid var(--border); border-top-color: var(--blue); border-radius: 50%; animation: spin .7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .header { background: var(--surface); border-bottom: 1.5px solid var(--border-soft); position: sticky; top: 0; z-index: 200; box-shadow: 0 2px 12px rgba(0,0,0,0.04); }
+  .header-inner { max-width: 1100px; margin: 0 auto; display: flex; align-items: center; justify-content: space-between; padding: 0 28px; height: 64px; }
+  .logo { display: flex; align-items: center; gap: 12px; }
+  .logo-icon { width: 38px; height: 38px; background: var(--blue); border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 19px; }
+  .logo-text { font-family: 'DM Serif Display', serif; font-size: 19px; letter-spacing: -0.3px; }
+  .logo-sub { font-size: 11px; color: var(--text-soft); font-weight: 500; }
+  .sync-label { font-size: 12px; color: var(--text-soft); display: flex; align-items: center; gap: 6px; }
+  .sync-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); animation: pulse 2s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+  .btn { display: inline-flex; align-items: center; gap: 6px; border: none; border-radius: 10px; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; padding: 9px 18px; }
+  .btn-primary { background: var(--blue); color: #fff; } .btn-primary:hover { background: #1447C0; }
+  .btn-success { background: var(--green); color: #fff; } .btn-success:hover { background: #059669; }
+  .btn-danger  { background: var(--red-bg); color: var(--red); border: 1.5px solid var(--red-border); } .btn-danger:hover { background: #FEE2E2; }
+  .btn-ghost   { background: transparent; color: var(--text-mid); border: 1.5px solid var(--border); } .btn-ghost:hover { background: var(--border-soft); }
+
+  .container { max-width: 1100px; margin: 0 auto; padding: 28px 24px; }
+
+  .alert { border-radius: 10px; padding: 11px 16px; font-size: 13px; font-weight: 500; display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+  .alert-amber { background: var(--amber-bg); border: 1.5px solid var(--amber-border); color: #92400E; }
+  .alert-blue  { background: var(--blue-bg);  border: 1.5px solid var(--blue-border);  color: #1E40AF; }
+
+  .stats { display: flex; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+  .stat-card { background: var(--surface); border-radius: var(--radius-lg); padding: 18px 22px; border: 1.5px solid var(--border-soft); flex: 1; min-width: 110px; }
+  .stat-num { font-size: 26px; font-weight: 700; line-height: 1; }
+  .stat-lbl { font-size: 12px; color: var(--text-soft); font-weight: 500; margin-top: 3px; }
+
+  .filter-bar { background: var(--surface); border-radius: var(--radius-lg); padding: 14px 18px; border: 1.5px solid var(--border-soft); margin-bottom: 18px; display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+  .search-input { padding: 9px 14px; border: 1.5px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 13px; color: var(--text); background: var(--bg); width: 220px; outline: none; transition: border-color .15s; }
+  .search-input:focus { border-color: var(--blue); background: #fff; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; }
+  .chip { padding: 5px 13px; border-radius: 20px; border: 1.5px solid var(--border); font-size: 12px; font-weight: 500; cursor: pointer; background: #fff; color: var(--text-mid); transition: all .15s; white-space: nowrap; }
+  .chip:hover { background: var(--border-soft); }
+  .chip.active        { background: var(--blue);  color: #fff; border-color: var(--blue);  }
+  .chip.red           { border-color: var(--red-border);   color: var(--red);   }
+  .chip.blue          { border-color: var(--blue-border);  color: var(--blue);  }
+  .chip.green         { border-color: var(--green-border); color: var(--green); }
+  .chip.red.active    { background: var(--red);   border-color: var(--red);   color: #fff; }
+  .chip.blue.active   { background: var(--blue);  border-color: var(--blue);  color: #fff; }
+  .chip.green.active  { background: var(--green); border-color: var(--green); color: #fff; }
+  .divider { width: 1px; height: 28px; background: var(--border); flex-shrink: 0; }
+
+  .news-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 14px; }
+  .news-card { background: var(--surface); border-radius: var(--radius-lg); padding: 18px 20px; border: 1.5px solid var(--border-soft); cursor: pointer; transition: all .18s; position: relative; border-left-width: 4px; }
+  .news-card:hover { border-color: #CBD5E1; box-shadow: var(--shadow); transform: translateY(-2px); }
+  .card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 11px; }
+  .loc-badge { font-size: 12px; font-weight: 700; color: var(--blue); background: var(--blue-bg); padding: 3px 11px; border-radius: 20px; }
+  .status-badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 11px; border-radius: 20px; font-size: 12px; font-weight: 600; border: 1.5px solid; }
+  .status-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+  .priority-badge { position: absolute; top: -7px; right: 14px; background: var(--amber); color: #fff; font-size: 10px; font-weight: 700; padding: 2px 10px; border-radius: 20px; }
+  .card-title  { font-size: 15px; font-weight: 700; color: var(--text); line-height: 1.35; margin-bottom: 5px; }
+  .card-doctor { font-size: 13px; color: var(--text-mid); font-weight: 500; margin-bottom: 8px; }
+  .card-bolum  { display: inline-flex; align-items: center; gap: 5px; background: #F1F5F9; border-radius: 20px; padding: 3px 10px; margin-bottom: 10px; }
+  .bolum-label { font-size: 10px; font-weight: 700; color: var(--slate); letter-spacing: 0.4px; }
+  .bolum-val   { font-size: 11px; font-weight: 600; color: #334155; }
+  .card-dates  { display: flex; gap: 14px; font-size: 12px; color: var(--text-soft); flex-wrap: wrap; }
+
+  .empty { text-align: center; padding: 64px 20px; color: var(--text-soft); }
+  .empty-icon  { font-size: 42px; margin-bottom: 12px; }
+  .empty-title { font-size: 16px; font-weight: 600; color: var(--text-mid); margin-bottom: 6px; }
+
+  .overlay { position: fixed; inset: 0; background: rgba(15,23,42,0.45); z-index: 300; display: flex; align-items: center; justify-content: center; padding: 20px; animation: fadeOv .2s ease; }
+  @keyframes fadeOv { from{opacity:0} to{opacity:1} }
+  .modal { background: var(--surface); border-radius: 20px; width: 100%; max-width: 620px; max-height: 90vh; overflow-y: auto; box-shadow: var(--shadow-lg); animation: slideMd .22s ease; }
+  @keyframes slideMd { from{opacity:0;transform:translateY(18px)} to{opacity:1;transform:translateY(0)} }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 24px 28px 20px; border-bottom: 1.5px solid var(--border-soft); position: sticky; top: 0; background: #fff; border-radius: 20px 20px 0 0; z-index: 1; }
+  .modal-title  { font-family: 'DM Serif Display', serif; font-size: 20px; }
+  .modal-body   { padding: 24px 28px; }
+  .modal-footer { padding: 16px 28px 24px; display: flex; justify-content: flex-end; gap: 10px; border-top: 1.5px solid var(--border-soft); }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .form-full  { grid-column: 1 / -1; }
+  .form-group label { display: block; font-size: 11px; font-weight: 700; color: var(--text-soft); margin-bottom: 6px; letter-spacing: 0.4px; }
+  .form-control { width: 100%; padding: 10px 13px; border: 1.5px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 13px; color: var(--text); background: var(--bg); outline: none; transition: border-color .15s; }
+  .form-control:focus { border-color: var(--blue); background: #fff; }
+  textarea.form-control { resize: vertical; min-height: 72px; }
+  .checkbox-row { display: flex; align-items: center; gap: 9px; cursor: pointer; }
+  .checkbox-row input { width: 16px; height: 16px; accent-color: var(--amber); cursor: pointer; }
+  .checkbox-row span { font-size: 13px; font-weight: 500; color: var(--text-mid); }
+
+  .detail-status-bar { border-left: 5px solid; padding-left: 18px; margin-bottom: 22px; }
+  .detail-chips { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 8px; }
+  .detail-main-title { font-family: 'DM Serif Display', serif; font-size: 22px; line-height: 1.3; }
+  .detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .detail-field { background: var(--bg); border-radius: 11px; padding: 13px 15px; }
+  .detail-field-lbl { font-size: 10px; font-weight: 700; color: var(--text-soft); letter-spacing: 0.5px; margin-bottom: 5px; }
+  .detail-field-val { font-size: 14px; font-weight: 600; }
+  .notes-box { background: var(--amber-bg); border: 1.5px solid var(--amber-border); border-radius: 11px; padding: 13px 15px; }
+  .notes-lbl { font-size: 10px; font-weight: 700; color: #D97706; letter-spacing: 0.5px; margin-bottom: 5px; }
+  .notes-val { font-size: 13px; color: var(--text-mid); line-height: 1.6; }
+  .detail-meta { font-size: 11px; color: #CBD5E1; text-align: right; margin-top: 14px; }
+  .detail-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; z-index: 9999; padding: 12px 20px; border-radius: 12px; font-size: 13px; font-weight: 600; box-shadow: 0 8px 28px rgba(0,0,0,0.16); border: 1.5px solid; animation: toastIn .25s ease; }
+  @keyframes toastIn { from{opacity:0;transform:translateY(12px)} to{opacity:1;transform:translateY(0)} }
+  .toast-success { background: var(--green-bg); color: #065F46; border-color: var(--green-border); }
+  .toast-error   { background: var(--red-bg);   color: #991B1B; border-color: var(--red-border); }
+
+  .fade-in { animation: fadeIn .22s ease; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+  /* TAB NAV */
+  .tab-nav { display: flex; gap: 4px; background: var(--border-soft); border-radius: 12px; padding: 4px; }
+  .tab-btn { padding: 8px 20px; border-radius: 9px; border: none; background: transparent; font-family: inherit; font-size: 13px; font-weight: 600; cursor: pointer; color: var(--text-soft); transition: all .15s; }
+  .tab-btn.active { background: #fff; color: var(--blue); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+  .tab-btn:hover:not(.active) { color: var(--text-mid); }
+
+  /* REPORT */
+  .report-section { display: none; }
+  .report-section.active { display: block; }
+  .report-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; flex-wrap: wrap; gap: 12px; }
+  .report-title { font-family: 'DM Serif Display', serif; font-size: 22px; }
+  .period-select { padding: 8px 13px; border: 1.5px solid var(--border); border-radius: 10px; font-family: inherit; font-size: 13px; color: var(--text); background: var(--bg); outline: none; cursor: pointer; }
+  .period-select:focus { border-color: var(--blue); }
+
+  .total-report-bar { background: var(--surface); border-radius: var(--radius-lg); padding: 20px 22px; border: 1.5px solid var(--border-soft); margin-bottom: 20px; }
+  .report-card-title { font-size: 12px; font-weight: 700; color: var(--text-soft); margin-bottom: 16px; letter-spacing: 0.4px; }
+  .total-bar-row { display: flex; align-items: center; gap: 12px; margin-bottom: 10px; }
+  .total-bar-label { font-size: 13px; font-weight: 600; color: var(--text-mid); width: 110px; flex-shrink: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .total-bar-track { flex: 1; height: 10px; background: var(--border-soft); border-radius: 10px; overflow: hidden; }
+  .total-bar-fill  { height: 100%; background: var(--green); border-radius: 10px; transition: width .7s ease; }
+  .total-bar-num   { font-size: 13px; font-weight: 700; color: var(--green); width: 24px; text-align: right; }
+
+  .report-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 20px; }
+  .summary-card { background: var(--surface); border-radius: var(--radius-lg); padding: 20px 22px; border: 1.5px solid var(--border-soft); }
+  .rank-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--border-soft); }
+  .rank-row:last-child { border-bottom: none; }
+  .rank-num  { font-size: 11px; font-weight: 700; color: var(--text-soft); width: 18px; }
+  .rank-name { flex: 1; font-size: 13px; font-weight: 600; color: var(--text); }
+  .rank-count { font-size: 13px; font-weight: 700; }
+
+  .loc-detail-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+  .loc-detail-card { background: var(--surface); border-radius: var(--radius-lg); padding: 18px 20px; border: 1.5px solid var(--border-soft); border-left: 4px solid var(--green); }
+  .loc-detail-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+  .loc-detail-name { font-size: 14px; font-weight: 700; }
+  .loc-detail-total { background: var(--green-bg); color: var(--green); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+  .mini-bar-row { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+  .mini-bar-label { font-size: 11px; color: var(--text-soft); width: 58px; flex-shrink: 0; font-weight: 500; }
+  .mini-bar-track { flex: 1; height: 6px; background: var(--border-soft); border-radius: 6px; overflow: hidden; }
+  .mini-bar-fill  { height: 100%; border-radius: 6px; }
+  .mini-bar-num   { font-size: 11px; font-weight: 700; width: 16px; text-align: right; }
+
+  @media (max-width: 640px) {
+    .form-grid,.detail-grid,.report-two-col { grid-template-columns: 1fr; }
+    .header-inner { padding: 0 16px; }
+    .container { padding: 18px 14px; }
+    .search-input { width: 100%; }
+    .tab-btn { padding: 7px 12px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="loading-screen">
+  <div style="width:42px;height:42px;background:var(--blue);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px">📰</div>
+  <div class="spinner"></div>
+  <div style="color:var(--text-soft);font-size:14px;font-weight:500">Haberler yükleniyor…</div>
+</div>
+
+<div class="header">
+  <div class="header-inner">
+    <div class="logo">
+      <div class="logo-icon">📰</div>
+      <div>
+        <div class="logo-text">Haber Yönetim Sistemi</div>
+        <div class="logo-sub">Hastane Medya Ekibi</div>
+      </div>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <div class="tab-nav">
+        <button class="tab-btn active" id="tab-haberler" onclick="switchTab('haberler')">📋 Haberler</button>
+        <button class="tab-btn" id="tab-rapor" onclick="switchTab('rapor')">📊 Rapor</button>
+      </div>
+      <span class="sync-label"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Bağlanıyor…</span></span>
+      <button class="btn btn-primary" id="btn-haber-ekle" onclick="openAddModal()">+ Haber Ekle</button>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+  <!-- HABERLER TAB -->
+  <div id="view-haberler">
+  <div id="alerts-section"></div>
+  <div class="stats" id="stats-section"></div>
+  <div class="filter-bar">
+    <input class="search-input" type="text" id="search-input" placeholder="🔍 Doktor, başlık veya bölüm ara…" oninput="renderList()" />
+    <div class="divider"></div>
+    <div class="chips" id="loc-chips"></div>
+    <div class="divider"></div>
+    <div class="chips" id="status-chips"></div>
+  </div>
+  <div id="news-grid"></div>
+  </div>
+
+  <!-- RAPOR TAB -->
+  <div id="view-rapor" style="display:none">
+    <div class="report-header">
+      <div class="report-title">📊 Yayın Raporu</div>
+      <select class="period-select" id="period-select" onchange="renderReport()">
+        <option value="all">Tüm Zamanlar</option>
+        <option value="thismonth">Bu Ay</option>
+        <option value="lastmonth">Geçen Ay</option>
+        <option value="thisyear">Bu Yıl</option>
+      </select>
+    </div>
+    <div id="report-content"></div>
+  </div>
+</div>
+
+<!-- ADD/EDIT MODAL -->
+<div class="overlay" id="form-modal" style="display:none" onclick="handleOverlayClick(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Yeni Haber Ekle</div>
+      <button class="btn btn-ghost" onclick="closeModal('form-modal')">✕ Kapat</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label>LOKASYON *</label><select class="form-control" id="f-location"><option value="">Seçiniz…</option></select></div>
+        <div class="form-group"><label>BÖLÜM</label><select class="form-control" id="f-topic" onchange="handleTopicChange()"><option value="">Seçiniz…</option></select></div>
+        <div class="form-group form-full" id="custom-topic-wrap" style="display:none"><label>ÖZEL BÖLÜM</label><input class="form-control" id="f-custom-topic" placeholder="Bölümü yazın…" /></div>
+        <div class="form-group form-full"><label>HABER BAŞLIĞI *</label><input class="form-control" id="f-title" placeholder="Haberin başlığını yazın…" /></div>
+        <div class="form-group form-full"><label>DOKTOR *</label><input class="form-control" id="f-doctor" placeholder="Prof. Dr. Ad Soyad…" /></div>
+        <div class="form-group"><label>ÇEKİM TARİHİ *</label><input class="form-control" type="date" id="f-shoot-date" /></div>
+        <div class="form-group"><label>DURUM</label>
+          <select class="form-control" id="f-status">
+            <option value="waiting">🔴 Paylaşımı Bekleniyor</option>
+            <option value="scheduled">🔵 Planlandı</option>
+            <option value="published">🟢 Paylaşıldı</option>
+          </select>
+        </div>
+        <div class="form-group form-full"><label>PAYLAŞIM TARİHİ <span style="font-weight:400;color:var(--text-soft)">(girilince otomatik Planlandı olur)</span></label><input class="form-control" type="date" id="f-publish-date" onchange="autoStatus()" /></div>
+        <div class="form-group form-full"><label>NOTLAR / ÖNEMLİ GÜNLER</label><textarea class="form-control" id="f-notes" placeholder="Açıklamalar, önemli günler, hatırlatmalar…"></textarea></div>
+        <div class="form-group form-full"><label class="checkbox-row"><input type="checkbox" id="f-priority" /><span>⭐ Öncelikli haber olarak işaretle</span></label></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('form-modal')">İptal</button>
+      <button class="btn btn-primary" id="submit-btn" onclick="handleSubmit()">✅ Kaydet</button>
+    </div>
+  </div>
+</div>
+
+<!-- DETAIL MODAL -->
+<div class="overlay" id="detail-modal" style="display:none" onclick="handleOverlayClick(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="detail-actions" id="detail-actions"></div>
+      <button class="btn btn-ghost" onclick="closeModal('detail-modal')">✕ Kapat</button>
+    </div>
+    <div class="modal-body" id="detail-body"></div>
+  </div>
+</div>
+
+<!-- DELETE CONFIRM -->
+<div class="overlay" id="delete-modal" style="display:none" onclick="handleOverlayClick(event)">
+  <div class="modal" style="max-width:400px" onclick="event.stopPropagation()">
+    <div class="modal-header"><div class="modal-title">Haberi Sil</div><button class="btn btn-ghost" onclick="closeModal('delete-modal')">✕</button></div>
+    <div class="modal-body"><p style="color:var(--text-mid);line-height:1.6">Bu haberi silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.</p></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('delete-modal')">İptal</button>
+      <button class="btn btn-danger" id="confirm-delete-btn">🗑 Evet, Sil</button>
+    </div>
+  </div>
+</div>
+
+<script type="module">
+import { initializeApp }    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
+import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyB1ZuYFHRvvzLGS8OQBEkByJCBpn41WX0s",
+  authDomain: "haberler-42f64.firebaseapp.com",
+  projectId: "haberler-42f64",
+  storageBucket: "haberler-42f64.firebasestorage.app",
+  messagingSenderId: "902830397579",
+  appId: "1:902830397579:web:057dc3daa2d53107801c8e",
+  measurementId: "G-XW8M57R7FR"
+};
+
+const app = initializeApp(firebaseConfig);
+const db  = getFirestore(app);
+const col = collection(db, "haberler");
+
+const LOCATIONS = ["Mega","Acıbadem","Bahçelievler","Koşuyolu","Pendik","Çamlıca","Vatan","Unkapanı","Esenler","Sefaköy"];
+const TOPICS    = ["Kalp Sağlığı","Diyabet Yönetimi","Çocuk Sağlığı","Kadın Hastalıkları","Ortopedi","Nöroloji","Onkoloji","Beslenme & Diyet","Psikoloji","Göz Sağlığı","Kulak Burun Boğaz","Dermatoloji","Üroloji","Gastroenteroloji","Göğüs Hastalıkları","Endokrinoloji","Diğer"];
+const STATUS    = {
+  waiting:   { label:"Paylaşımı Bekleniyor", color:"#EF4444", bg:"#FEF2F2", border:"#FECACA" },
+  scheduled: { label:"Planlandı",            color:"#1A56DB", bg:"#EFF6FF", border:"#BFDBFE" },
+  published: { label:"Paylaşıldı",           color:"#10B981", bg:"#ECFDF5", border:"#A7F3D0" },
+};
+
+let news = [], filterLoc = "Tümü", filterStatus = "Tümü", editingId = null, openDetailId = null;
+
+// HELPERS
+const fmtDate = d => { if (!d) return "—"; const [y,m,dd]=d.split("-"); return `${dd}.${m}.${y}`; };
+const todayStr    = () => new Date().toISOString().split("T")[0];
+const tomorrowStr = () => { const t=new Date(); t.setDate(t.getDate()+1); return t.toISOString().split("T")[0]; };
+const isToday    = d => d === todayStr();
+const isTomorrow = d => d === tomorrowStr();
+
+// TOAST
+window.showToast = (msg, type="success") => {
+  const el = document.createElement("div");
+  el.className = `toast toast-${type}`;
+  el.textContent = (type==="success"?"✅ ":"❌ ") + msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), 2800);
+};
+
+// SELECTS
+function initSelects() {
+  const ls = document.getElementById("f-location");
+  LOCATIONS.forEach(l => { const o=document.createElement("option"); o.value=l; o.textContent=l; ls.appendChild(o); });
+  const ts = document.getElementById("f-topic");
+  TOPICS.forEach(t => { const o=document.createElement("option"); o.value=t; o.textContent=t; ts.appendChild(o); });
+}
+
+// REAL-TIME
+function startListener() {
+  onSnapshot(query(col, orderBy("createdAt","desc")), snap => {
+    news = snap.docs.map(d => ({ id:d.id, ...d.data() }));
+    document.getElementById("loading-screen").style.display = "none";
+    document.getElementById("sync-dot").style.background   = "var(--green)";
+    document.getElementById("sync-label").textContent      = "Canlı";
+    renderAll();
+    if (openDetailId && document.getElementById("detail-modal").style.display !== "none") openDetail(openDetailId);
+  }, () => {
+    document.getElementById("sync-dot").style.background = "var(--red)";
+    document.getElementById("sync-label").textContent    = "Bağlantı yok";
+  });
+}
+
+// CRUD
+const addNews    = data => addDoc(col, { ...data, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
+const updateNews = (id,data) => updateDoc(doc(db,"haberler",id), { ...data, updatedAt:serverTimestamp() });
+window.deleteItem = async id => {
+  await deleteDoc(doc(db,"haberler",id));
+  closeModal("delete-modal"); showToast("Haber silindi.","error");
+};
+window.publishItem = async id => {
+  const item = news.find(n=>n.id===id);
+  await updateNews(id, { status:"published", publishDate: item?.publishDate||todayStr() });
+  showToast("Haber yayınlandı!");
+};
+
+// CHIPS
+function buildLocChips() {
+  document.getElementById("loc-chips").innerHTML =
+    ["Tümü",...LOCATIONS].map(l =>
+      `<button class="chip ${filterLoc===l?"active":""}" onclick="setLoc('${l}')">${l}</button>`).join("");
+}
+function buildStatusChips() {
+  document.getElementById("status-chips").innerHTML =
+    [{k:"Tümü",label:"Tüm Durumlar",cls:""},{k:"waiting",label:"Bekleyen",cls:"red"},{k:"scheduled",label:"Planlandı",cls:"blue"},{k:"published",label:"Paylaşıldı",cls:"green"}]
+    .map(s=>`<button class="chip ${s.cls} ${filterStatus===s.k?"active":""}" onclick="setSt('${s.k}')">${s.label}</button>`).join("");
+}
+window.setLoc = l => { filterLoc=l;    buildLocChips();    renderList(); };
+window.setSt  = s => { filterStatus=s; buildStatusChips(); renderList(); };
+
+// STATS
+function renderStats() {
+  const w=news.filter(n=>n.status==="waiting").length, sc=news.filter(n=>n.status==="scheduled").length, p=news.filter(n=>n.status==="published").length;
+  document.getElementById("stats-section").innerHTML = `
+    <div class="stat-card" style="border-left:4px solid #EF4444"><div style="font-size:20px;margin-bottom:4px">🔴</div><div class="stat-num" style="color:#EF4444">${w}</div><div class="stat-lbl">Bekleyen</div></div>
+    <div class="stat-card" style="border-left:4px solid #1A56DB"><div style="font-size:20px;margin-bottom:4px">🔵</div><div class="stat-num" style="color:#1A56DB">${sc}</div><div class="stat-lbl">Planlandı</div></div>
+    <div class="stat-card" style="border-left:4px solid #10B981"><div style="font-size:20px;margin-bottom:4px">🟢</div><div class="stat-num" style="color:#10B981">${p}</div><div class="stat-lbl">Paylaşıldı</div></div>
+    <div class="stat-card" style="border-left:4px solid #8B5CF6"><div style="font-size:20px;margin-bottom:4px">📊</div><div class="stat-num" style="color:#8B5CF6">${news.length}</div><div class="stat-lbl">Toplam</div></div>`;
+}
+
+// ALERTS
+function renderAlerts() {
+  const ti=news.filter(n=>isToday(n.publishDate)&&n.status!=="published");
+  const tm=news.filter(n=>isTomorrow(n.publishDate)&&n.status!=="published");
+  document.getElementById("alerts-section").innerHTML =
+    (ti.length?`<div class="alert alert-amber">🔔 <span><strong>Bugün paylaşılacak ${ti.length} haber var:</strong> ${ti.map(n=>n.doctor||n.title).join(", ")}</span></div>`:"") +
+    (tm.length?`<div class="alert alert-blue" style="margin-bottom:18px">📅 <span><strong>Yarın paylaşılacak ${tm.length} haber var:</strong> ${tm.map(n=>n.doctor||n.title).join(", ")}</span></div>`:"");
+}
+
+// LIST
+function renderList() {
+  const q = document.getElementById("search-input").value.toLowerCase();
+  const filtered = news.filter(n => {
+    const locOk  = filterLoc==="Tümü"    || n.location===filterLoc;
+    const stOk   = filterStatus==="Tümü" || n.status===filterStatus;
+    const srchOk = !q || [n.title,n.doctor,n.topic,n.location].some(v=>v&&v.toLowerCase().includes(q));
+    return locOk&&stOk&&srchOk;
+  });
+  const grid = document.getElementById("news-grid");
+  if (!filtered.length) {
+    grid.innerHTML=`<div class="empty fade-in"><div class="empty-icon">📭</div><div class="empty-title">Haber bulunamadı</div><p>Filtrelerinizi değiştirin veya yeni haber ekleyin.</p></div>`;
+    return;
+  }
+  grid.innerHTML = `<div class="news-grid fade-in">${filtered.map(item => {
+    const st=STATUS[item.status]||STATUS.waiting;
+    const today=isToday(item.publishDate), tmrw=isTomorrow(item.publishDate);
+    const dc=today?"#F59E0B":tmrw?"#1A56DB":"var(--text-soft)";
+    const ds=today?" (Bugün!)":tmrw?" (Yarın)":"";
+    return `<div class="news-card" style="border-left-color:${st.color}" onclick="openDetail('${item.id}')">
+      ${item.priority?`<div class="priority-badge">⭐ ÖNCELİKLİ</div>`:""}
+      <div class="card-top">
+        <span class="loc-badge">📍 ${item.location||"—"}</span>
+        <span class="status-badge" style="color:${st.color};background:${st.bg};border-color:${st.border}">
+          <span class="status-dot" style="background:${st.color}"></span>${st.label}
+        </span>
+      </div>
+      <div class="card-title">${item.title||"—"}</div>
+      <div class="card-doctor">👨‍⚕️ ${item.doctor||"—"}</div>
+      ${item.topic?`<div class="card-bolum"><span class="bolum-label">BÖLÜM</span><span style="font-size:10px;color:var(--text-soft)">·</span><span class="bolum-val">${item.topic}</span></div>`:""}
+      <div class="card-dates">
+        <span>🎬 ${fmtDate(item.shootDate)}</span>
+        ${item.publishDate?`<span style="color:${dc};font-weight:${today||tmrw?700:400}">📤 ${fmtDate(item.publishDate)}${ds}</span>`:""}
+      </div>
+    </div>`;
+  }).join("")}</div>`;
+}
+
+// DETAIL
+window.openDetail = id => {
+  openDetailId = id;
+  const item = news.find(n=>n.id===id);
+  if (!item) return;
+  const st=STATUS[item.status]||STATUS.waiting;
+  const today=isToday(item.publishDate), tmrw=isTomorrow(item.publishDate);
+  const dc=today?"#F59E0B":tmrw?"#1A56DB":"var(--text)";
+  const ds=today?" — Bugün!":tmrw?" — Yarın":"";
+  const ts = item.createdAt?.toDate ? item.createdAt.toDate().toLocaleString("tr-TR") : "—";
+  document.getElementById("detail-actions").innerHTML =
+    `<button class="btn btn-ghost" onclick="openEditModal('${id}')">✏️ Düzenle</button>
+     ${item.status!=="published"?`<button class="btn btn-success" onclick="publishItem('${id}')">✅ Yayınla</button>`:""}
+     <button class="btn btn-danger" onclick="confirmDelete('${id}')">🗑</button>`;
+  document.getElementById("detail-body").innerHTML = `
+    <div class="detail-status-bar" style="border-left-color:${st.color}">
+      <div class="detail-chips">
+        <span class="status-badge" style="color:${st.color};background:${st.bg};border-color:${st.border};font-size:13px">
+          <span class="status-dot" style="background:${st.color}"></span>${st.label}
+        </span>
+        ${item.priority?`<span style="background:var(--amber-bg);color:#D97706;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;border:1.5px solid var(--amber-border)">⭐ ÖNCELİKLİ</span>`:""}
+      </div>
+      <div class="detail-main-title">${item.title||"Başlıksız"}</div>
+      ${item.topic?`<div style="margin-top:6px"><span style="font-size:11px;font-weight:700;color:var(--text-soft)">BÖLÜM</span> <span style="color:var(--text-soft)">·</span> <span style="font-weight:600;color:var(--text-mid)">${item.topic}</span></div>`:""}
+    </div>
+    <div class="detail-grid">
+      <div class="detail-field"><div class="detail-field-lbl">📍 LOKASYON</div><div class="detail-field-val">${item.location||"—"}</div></div>
+      <div class="detail-field"><div class="detail-field-lbl">👨‍⚕️ DOKTOR</div><div class="detail-field-val">${item.doctor||"—"}</div></div>
+      <div class="detail-field"><div class="detail-field-lbl">🎬 ÇEKİM TARİHİ</div><div class="detail-field-val">${fmtDate(item.shootDate)}</div></div>
+      <div class="detail-field"><div class="detail-field-lbl">📤 PAYLAŞIM TARİHİ</div><div class="detail-field-val" style="color:${dc}">${fmtDate(item.publishDate)}${ds}</div></div>
+    </div>
+    ${item.notes?`<div class="notes-box"><div class="notes-lbl">📝 NOTLAR</div><div class="notes-val">${item.notes}</div></div>`:""}
+    <div class="detail-meta">Oluşturulma: ${ts}</div>`;
+  document.getElementById("detail-modal").style.display = "flex";
+};
+
+window.confirmDelete = id => {
+  closeModal("detail-modal");
+  document.getElementById("confirm-delete-btn").onclick = () => deleteItem(id);
+  document.getElementById("delete-modal").style.display = "flex";
+};
+
+// FORM
+window.openAddModal = () => {
+  editingId = null;
+  document.getElementById("modal-title").textContent = "Yeni Haber Ekle";
+  document.getElementById("submit-btn").textContent  = "✅ Kaydet";
+  resetForm();
+  document.getElementById("form-modal").style.display = "flex";
+};
+window.openEditModal = id => {
+  const item = news.find(n=>n.id===id);
+  if (!item) return;
+  editingId = id;
+  closeModal("detail-modal");
+  document.getElementById("modal-title").textContent = "Haberi Düzenle";
+  document.getElementById("submit-btn").textContent  = "💾 Güncelle";
+  fillForm(item);
+  document.getElementById("form-modal").style.display = "flex";
+};
+function resetForm() {
+  ["f-location","f-topic","f-title","f-doctor","f-shoot-date","f-publish-date","f-notes","f-custom-topic"]
+    .forEach(id => { const el=document.getElementById(id); if(el) el.value=""; });
+  document.getElementById("f-status").value = "waiting";
+  document.getElementById("f-priority").checked = false;
+  document.getElementById("custom-topic-wrap").style.display = "none";
+}
+function fillForm(item) {
+  document.getElementById("f-location").value    = item.location    ||"";
+  document.getElementById("f-title").value        = item.title       ||"";
+  document.getElementById("f-doctor").value       = item.doctor      ||"";
+  document.getElementById("f-shoot-date").value   = item.shootDate   ||"";
+  document.getElementById("f-publish-date").value = item.publishDate ||"";
+  document.getElementById("f-status").value       = item.status      ||"waiting";
+  document.getElementById("f-notes").value        = item.notes       ||"";
+  document.getElementById("f-priority").checked   = !!item.priority;
+  const known = TOPICS.includes(item.topic);
+  document.getElementById("f-topic").value        = known ? item.topic : (item.topic?"Diğer":"");
+  document.getElementById("f-custom-topic").value = known ? "" : (item.topic||"");
+  document.getElementById("custom-topic-wrap").style.display = (!known&&item.topic)?"block":"none";
+}
+window.handleTopicChange = () => {
+  document.getElementById("custom-topic-wrap").style.display =
+    document.getElementById("f-topic").value==="Diğer"?"block":"none";
+};
+window.autoStatus = () => {
+  const pd=document.getElementById("f-publish-date").value, st=document.getElementById("f-status");
+  if (pd&&st.value==="waiting") st.value="scheduled";
+};
+window.handleSubmit = async () => {
+  const loc=document.getElementById("f-location").value, title=document.getElementById("f-title").value.trim(),
+        doctor=document.getElementById("f-doctor").value.trim(), shoot=document.getElementById("f-shoot-date").value;
+  if (!loc||!title||!doctor||!shoot) { showToast("Lokasyon, başlık, doktor ve çekim tarihi zorunludur.","error"); return; }
+  const topicRaw=document.getElementById("f-topic").value;
+  const topic = topicRaw==="Diğer" ? document.getElementById("f-custom-topic").value.trim() : topicRaw;
+  const data = { location:loc, title, doctor, topic,
+    shootDate:document.getElementById("f-shoot-date").value,
+    publishDate:document.getElementById("f-publish-date").value,
+    status:document.getElementById("f-status").value,
+    notes:document.getElementById("f-notes").value.trim(),
+    priority:document.getElementById("f-priority").checked };
+  const btn=document.getElementById("submit-btn");
+  btn.disabled=true; btn.textContent="Kaydediliyor…";
+  try {
+    if (editingId) { await updateNews(editingId,data); showToast("Haber güncellendi."); }
+    else           { await addNews(data);              showToast("Haber eklendi!"); }
+    closeModal("form-modal");
+  } catch(e) { showToast("Hata: "+e.message,"error"); }
+  btn.disabled=false; btn.textContent=editingId?"💾 Güncelle":"✅ Kaydet";
+};
+
+window.closeModal = id => {
+  document.getElementById(id).style.display="none";
+  if (id==="detail-modal") openDetailId=null;
+};
+window.handleOverlayClick = e => {
+  if (e.target===e.currentTarget) { e.currentTarget.style.display="none"; if(e.currentTarget.id==="detail-modal") openDetailId=null; }
+};
+
+// TAB SWITCHING
+window.switchTab = tab => {
+  document.getElementById("view-haberler").style.display = tab==="haberler" ? "block" : "none";
+  document.getElementById("view-rapor").style.display    = tab==="rapor"    ? "block" : "none";
+  document.getElementById("tab-haberler").classList.toggle("active", tab==="haberler");
+  document.getElementById("tab-rapor").classList.toggle("active",    tab==="rapor");
+  document.getElementById("btn-haber-ekle").style.display = tab==="haberler" ? "" : "none";
+  if (tab==="rapor") renderReport();
+};
+
+// REPORT
+window.renderReport = () => {
+  const period = document.getElementById("period-select").value;
+  const published = news.filter(n => {
+    if (n.status !== "published") return false;
+    if (period === "all") return true;
+    const d = n.publishDate;
+    if (!d) return false;
+    const now = new Date(), pd = new Date(d);
+    if (period === "thismonth")  return pd.getMonth()===now.getMonth() && pd.getFullYear()===now.getFullYear();
+    if (period === "lastmonth") { const lm=new Date(now.getFullYear(),now.getMonth()-1,1); return pd.getMonth()===lm.getMonth()&&pd.getFullYear()===lm.getFullYear(); }
+    if (period === "thisyear")   return pd.getFullYear()===now.getFullYear();
+    return true;
+  });
+
+  // Lokasyon bazlı sayım
+  const locMap = {};
+  LOCATIONS.forEach(l => locMap[l] = 0);
+  published.forEach(n => { if (n.location && locMap[n.location] !== undefined) locMap[n.location]++; });
+  const maxLoc = Math.max(...Object.values(locMap), 1);
+
+  // Bölüm bazlı sayım
+  const topicMap = {};
+  published.forEach(n => { if (n.topic) topicMap[n.topic] = (topicMap[n.topic]||0)+1; });
+  const topicRanked = Object.entries(topicMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  // Doktor bazlı sayım
+  const docMap = {};
+  published.forEach(n => { if (n.doctor) docMap[n.doctor] = (docMap[n.doctor]||0)+1; });
+  const docRanked = Object.entries(docMap).sort((a,b)=>b[1]-a[1]).slice(0,8);
+
+  const COLORS = ["#10B981","#1A56DB","#F59E0B","#8B5CF6","#EF4444","#06B6D4","#EC4899","#84CC16"];
+
+  document.getElementById("report-content").innerHTML = `
+    <!-- Özet Stat Kartları -->
+    <div class="stats" style="margin-bottom:20px">
+      <div class="stat-card" style="border-left:4px solid var(--green)">
+        <div style="font-size:20px;margin-bottom:4px">🟢</div>
+        <div class="stat-num" style="color:var(--green)">${published.length}</div>
+        <div class="stat-lbl">Paylaşılan Haber</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid var(--blue)">
+        <div style="font-size:20px;margin-bottom:4px">📍</div>
+        <div class="stat-num" style="color:var(--blue)">${Object.values(locMap).filter(v=>v>0).length}</div>
+        <div class="stat-lbl">Aktif Lokasyon</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid var(--purple)">
+        <div style="font-size:20px;margin-bottom:4px">👨‍⚕️</div>
+        <div class="stat-num" style="color:var(--purple)">${Object.keys(docMap).length}</div>
+        <div class="stat-lbl">Farklı Doktor</div>
+      </div>
+      <div class="stat-card" style="border-left:4px solid var(--amber)">
+        <div style="font-size:20px;margin-bottom:4px">📂</div>
+        <div class="stat-num" style="color:var(--amber)">${Object.keys(topicMap).length}</div>
+        <div class="stat-lbl">Farklı Bölüm</div>
+      </div>
+    </div>
+
+    <!-- Lokasyon Bar Chart -->
+    <div class="total-report-bar">
+      <div class="report-card-title">📍 LOKASYON BAZINDA PAYLAŞILAN HABER SAYISI</div>
+      ${LOCATIONS.map(l => {
+        const count = locMap[l]||0;
+        const pct   = count ? Math.round((count/maxLoc)*100) : 0;
+        return `<div class="total-bar-row">
+          <div class="total-bar-label">${l}</div>
+          <div class="total-bar-track"><div class="total-bar-fill" style="width:${pct}%;background:${count?'var(--green)':'var(--border)'}"></div></div>
+          <div class="total-bar-num" style="color:${count?'var(--green)':'var(--text-soft)'}">${count}</div>
+        </div>`;
+      }).join("")}
+    </div>
+
+    <!-- Bölüm ve Doktor Sıralaması -->
+    <div class="report-two-col">
+      <div class="summary-card">
+        <div class="report-card-title">📂 EN ÇOK PAYLAŞILAN BÖLÜMLER</div>
+        ${topicRanked.length ? topicRanked.map(([name,count],i)=>`
+          <div class="rank-row">
+            <span class="rank-num">${i+1}</span>
+            <span style="width:9px;height:9px;border-radius:50%;background:${COLORS[i%COLORS.length]};flex-shrink:0;display:inline-block"></span>
+            <span class="rank-name">${name}</span>
+            <span class="rank-count" style="color:${COLORS[i%COLORS.length]}">${count}</span>
+          </div>`).join("") :
+          `<div style="color:var(--text-soft);font-size:13px;padding:12px 0;text-align:center">Veri yok</div>`}
+      </div>
+      <div class="summary-card">
+        <div class="report-card-title">👨‍⚕️ EN ÇOK PAYLAŞAN DOKTORLAR</div>
+        ${docRanked.length ? docRanked.map(([name,count],i)=>`
+          <div class="rank-row">
+            <span class="rank-num">${i+1}</span>
+            <span class="rank-name">${name}</span>
+            <span class="rank-count" style="color:var(--blue)">${count}</span>
+          </div>`).join("") :
+          `<div style="color:var(--text-soft);font-size:13px;padding:12px 0;text-align:center">Veri yok</div>`}
+      </div>
+    </div>
+
+    <!-- Lokasyon Detay Kartları -->
+    <div class="report-card-title" style="margin-bottom:12px">📋 LOKASYON DETAYLARI</div>
+    <div class="loc-detail-grid">
+      ${LOCATIONS.filter(l=>locMap[l]>0).map(l => {
+        const locNews = published.filter(n=>n.location===l);
+        const w  = news.filter(n=>n.location===l&&n.status==="waiting").length;
+        const sc = news.filter(n=>n.location===l&&n.status==="scheduled").length;
+        const p  = locNews.length;
+        const total = w+sc+p||1;
+        return `<div class="loc-detail-card">
+          <div class="loc-detail-top">
+            <div class="loc-detail-name">📍 ${l}</div>
+            <div class="loc-detail-total">${p} paylaşıldı</div>
+          </div>
+          <div class="mini-bar-row">
+            <div class="mini-bar-label">Paylaşıldı</div>
+            <div class="mini-bar-track"><div class="mini-bar-fill" style="width:${Math.round(p/total*100)}%;background:var(--green)"></div></div>
+            <div class="mini-bar-num" style="color:var(--green)">${p}</div>
+          </div>
+          <div class="mini-bar-row">
+            <div class="mini-bar-label">Planlandı</div>
+            <div class="mini-bar-track"><div class="mini-bar-fill" style="width:${Math.round(sc/total*100)}%;background:var(--blue)"></div></div>
+            <div class="mini-bar-num" style="color:var(--blue)">${sc}</div>
+          </div>
+          <div class="mini-bar-row">
+            <div class="mini-bar-label">Bekleyen</div>
+            <div class="mini-bar-track"><div class="mini-bar-fill" style="width:${Math.round(w/total*100)}%;background:var(--red)"></div></div>
+            <div class="mini-bar-num" style="color:var(--red)">${w}</div>
+          </div>
+        </div>`;
+      }).join("") || `<div style="color:var(--text-soft);font-size:14px;padding:32px;text-align:center;grid-column:1/-1">Bu dönemde paylaşılan haber yok.</div>`}
+    </div>
+  `;
+};
+
+function renderAll() { renderAlerts(); renderStats(); buildLocChips(); buildStatusChips(); renderList(); }
+
+initSelects();
+startListener();
+</script>
+</body>
+</html>
