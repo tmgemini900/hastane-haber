@@ -167,6 +167,21 @@
   .mini-bar-fill  { height: 100%; border-radius: 6px; }
   .mini-bar-num   { font-size: 11px; font-weight: 700; width: 16px; text-align: right; }
 
+  /* MULTI INPUT */
+  .multi-input-container { display: flex; flex-direction: column; gap: 8px; }
+  .multi-input-row { display: flex; gap: 8px; align-items: flex-start; }
+  .multi-input-row .form-control { flex: 1; }
+  .multi-input-row select.form-control { width: 140px; flex-shrink: 0; }
+  .btn-icon { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; padding: 0; border-radius: 8px; flex-shrink: 0; font-size: 16px; }
+  .btn-add { background: var(--green-bg); color: var(--green); border: 1.5px solid var(--green-border); }
+  .btn-add:hover { background: var(--green); color: #fff; }
+  .btn-remove { background: var(--red-bg); color: var(--red); border: 1.5px solid var(--red-border); }
+  .btn-remove:hover { background: var(--red); color: #fff; }
+
+  /* EXPORT BUTTON */
+  .btn-export { background: var(--green); color: #fff; display: inline-flex; align-items: center; gap: 6px; }
+  .btn-export:hover { background: #059669; }
+
   @media (max-width: 640px) {
     .form-grid,.detail-grid,.report-two-col { grid-template-columns: 1fr; }
     .header-inner { padding: 0 16px; }
@@ -174,9 +189,46 @@
     .search-input { width: 100%; }
     .tab-btn { padding: 7px 12px; font-size: 12px; }
   }
+
+  /* LOGIN SCREEN */
+  #login-screen { position: fixed; inset: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .login-card { background: white; border-radius: 20px; padding: 40px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  .login-header { text-align: center; margin-bottom: 32px; }
+  .login-logo { width: 60px; height: 60px; background: var(--blue); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
+  .login-title { font-family: 'DM Serif Display', serif; font-size: 24px; color: var(--text); margin-bottom: 6px; }
+  .login-subtitle { font-size: 14px; color: var(--text-soft); }
+  .login-form { display: flex; flex-direction: column; gap: 16px; }
+  .login-input { padding: 12px 16px; border: 2px solid var(--border); border-radius: 12px; font-size: 14px; font-family: inherit; transition: border-color .15s; }
+  .login-input:focus { outline: none; border-color: var(--blue); }
+  .login-btn { background: var(--blue); color: white; border: none; padding: 13px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background .15s; }
+  .login-btn:hover { background: #1447C0; }
+  .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .login-error { background: var(--red-bg); color: var(--red); padding: 10px 14px; border-radius: 10px; font-size: 13px; text-align: center; border: 1.5px solid var(--red-border); }
+  .user-badge { display: flex; align-items: center; gap: 8px; background: var(--blue-bg); padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--blue); }
+  .user-initial { width: 24px; height: 24px; background: var(--blue); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 </style>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="login-logo">📰</div>
+      <div class="login-title">Haber Yönetim Sistemi</div>
+      <div class="login-subtitle">Hastane Medya Ekibi</div>
+    </div>
+    <div class="login-form">
+      <div id="login-error" class="login-error" style="display:none"></div>
+      <input type="email" id="login-email" class="login-input" placeholder="E-posta adresi" autocomplete="email" />
+      <input type="password" id="login-password" class="login-input" placeholder="Şifre" autocomplete="current-password" />
+      <button id="login-btn" class="login-btn">Giriş Yap</button>
+      <div style="text-align:center;font-size:12px;color:var(--text-soft);margin-top:8px">
+        İlk kez giriş yapıyorsanız hesap otomatik oluşturulacaktır
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="loading-screen">
   <div style="width:42px;height:42px;background:var(--blue);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px">📰</div>
@@ -199,6 +251,11 @@
         <button class="tab-btn" id="tab-rapor" onclick="switchTab('rapor')">📊 Rapor</button>
       </div>
       <span class="sync-label"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Bağlanıyor…</span></span>
+      <div class="user-badge" id="user-badge">
+        <div class="user-initial" id="user-initial">?</div>
+        <span id="user-name">Kullanıcı</span>
+        <button id="logout-btn" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:18px;padding:0;line-height:1">×</button>
+      </div>
       <button class="btn btn-primary" id="btn-haber-ekle" onclick="openAddModal()">+ Haber Ekle</button>
     </div>
   </div>
@@ -223,12 +280,15 @@
   <div id="view-rapor" style="display:none">
     <div class="report-header">
       <div class="report-title">📊 Yayın Raporu</div>
-      <select class="period-select" id="period-select" onchange="renderReport()">
-        <option value="all">Tüm Zamanlar</option>
-        <option value="thismonth">Bu Ay</option>
-        <option value="lastmonth">Geçen Ay</option>
-        <option value="thisyear">Bu Yıl</option>
-      </select>
+      <div style="display:flex;gap:10px;align-items:center">
+        <select class="period-select" id="period-select" onchange="renderReport()">
+          <option value="all">Tüm Zamanlar</option>
+          <option value="thismonth">Bu Ay</option>
+          <option value="lastmonth">Geçen Ay</option>
+          <option value="thisyear">Bu Yıl</option>
+        </select>
+        <button class="btn btn-export" onclick="exportReport()">📥 Excel İndir</button>
+      </div>
     </div>
     <div id="report-content"></div>
   </div>
@@ -243,11 +303,27 @@
     </div>
     <div class="modal-body">
       <div class="form-grid">
-        <div class="form-group"><label>LOKASYON *</label><select class="form-control" id="f-location"><option value="">Seçiniz…</option></select></div>
+        <div class="form-group form-full">
+          <label>LOKASYONLAR * <span style="font-weight:400;color:var(--text-soft)">(birden fazla ekleyebilirsiniz)</span></label>
+          <div class="multi-input-container" id="locations-container">
+            <div class="multi-input-row">
+              <select class="form-control location-input"><option value="">Seçiniz…</option></select>
+              <button type="button" class="btn btn-icon btn-add" onclick="addLocationRow()">+</button>
+            </div>
+          </div>
+        </div>
         <div class="form-group"><label>BÖLÜM</label><select class="form-control" id="f-topic" onchange="handleTopicChange()"><option value="">Seçiniz…</option></select></div>
         <div class="form-group form-full" id="custom-topic-wrap" style="display:none"><label>ÖZEL BÖLÜM</label><input class="form-control" id="f-custom-topic" placeholder="Bölümü yazın…" /></div>
         <div class="form-group form-full"><label>HABER BAŞLIĞI *</label><input class="form-control" id="f-title" placeholder="Haberin başlığını yazın…" /></div>
-        <div class="form-group form-full"><label>DOKTOR *</label><input class="form-control" id="f-doctor" placeholder="Prof. Dr. Ad Soyad…" /></div>
+        <div class="form-group form-full">
+          <label>DOKTORLAR * <span style="font-weight:400;color:var(--text-soft)">(birden fazla ekleyebilirsiniz)</span></label>
+          <div class="multi-input-container" id="doctors-container">
+            <div class="multi-input-row">
+              <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" />
+              <button type="button" class="btn btn-icon btn-add" onclick="addDoctorRow()">+</button>
+            </div>
+          </div>
+        </div>
         <div class="form-group"><label>ÇEKİM TARİHİ *</label><input class="form-control" type="date" id="f-shoot-date" /></div>
         <div class="form-group"><label>DURUM</label>
           <select class="form-control" id="f-status">
@@ -257,6 +333,7 @@
           </select>
         </div>
         <div class="form-group form-full"><label>PAYLAŞIM TARİHİ <span style="font-weight:400;color:var(--text-soft)">(girilince otomatik Planlandı olur)</span></label><input class="form-control" type="date" id="f-publish-date" onchange="autoStatus()" /></div>
+        <div class="form-group form-full"><label>HABER LİNKİ <span style="font-weight:400;color:var(--text-soft)">(paylaşılan haberin sosyal medya veya web linki)</span></label><input class="form-control" type="url" id="f-link" placeholder="https://…" /></div>
         <div class="form-group form-full"><label>NOTLAR / ÖNEMLİ GÜNLER</label><textarea class="form-control" id="f-notes" placeholder="Açıklamalar, önemli günler, hatırlatmalar…"></textarea></div>
         <div class="form-group form-full"><label class="checkbox-row"><input type="checkbox" id="f-priority" /><span>⭐ Öncelikli haber olarak işaretle</span></label></div>
       </div>
@@ -295,6 +372,8 @@
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB1ZuYFHRvvzLGS8OQBEkByJCBpn41WX0s",
@@ -308,10 +387,112 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
+const auth = getAuth(app);
 const col = collection(db, "haberler");
 
+let currentUser = null;
+
+// SETUP EVENT LISTENERS
+document.addEventListener("DOMContentLoaded", () => {
+  const loginBtn = document.getElementById("login-btn");
+  const logoutBtn = document.getElementById("logout-btn");
+  const loginPassword = document.getElementById("login-password");
+  
+  if (loginBtn) loginBtn.addEventListener("click", handleLogin);
+  if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
+  if (loginPassword) loginPassword.addEventListener("keypress", e => { if (e.key === "Enter") handleLogin(); });
+});
+
+// AUTH HANDLERS
+async function handleLogin() {
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  const btn = document.getElementById("login-btn");
+  const errDiv = document.getElementById("login-error");
+  
+  if (!email || !password) {
+    errDiv.textContent = "E-posta ve şifre gerekli";
+    errDiv.style.display = "block";
+    return;
+  }
+  
+  btn.disabled = true;
+  btn.textContent = "Giriş yapılıyor...";
+  errDiv.style.display = "none";
+  
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    if (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential") {
+      try {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } catch (createError) {
+        errDiv.textContent = createError.code === "auth/weak-password" 
+          ? "Şifre en az 6 karakter olmalı" 
+          : "Hesap oluşturulamadı: " + createError.message;
+        errDiv.style.display = "block";
+        btn.disabled = false;
+        btn.textContent = "Giriş Yap";
+      }
+    } else {
+      errDiv.textContent = error.code === "auth/wrong-password" 
+        ? "Hatalı şifre" 
+        : error.code === "auth/invalid-email"
+        ? "Geçersiz e-posta adresi"
+        : "Giriş hatası: " + error.message;
+      errDiv.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "Giriş Yap";
+    }
+  }
+};
+
+async function handleLogout() {
+  if (confirm("Çıkış yapmak istediğinizden emin misiniz?")) {
+    await signOut(auth);
+  }
+}
+
+// AUTH STATE OBSERVER
+onAuthStateChanged(auth, user => {
+  if (user) {
+    currentUser = user;
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("loading-screen").style.display = "flex";
+    const name = user.email.split("@")[0];
+    const initial = name.charAt(0).toUpperCase();
+    document.getElementById("user-name").textContent = name;
+    document.getElementById("user-initial").textContent = initial;
+    initSelects();
+    startListener();
+  } else {
+    currentUser = null;
+    document.getElementById("login-screen").style.display = "flex";
+    document.getElementById("loading-screen").style.display = "none";
+    const loginBtn = document.getElementById("login-btn");
+    if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = "Giriş Yap"; }
+  }
+});
+
 const LOCATIONS = ["Mega","Acıbadem","Bahçelievler","Koşuyolu","Pendik","Çamlıca","Vatan","Unkapanı","Esenler","Sefaköy"];
-const TOPICS    = ["Kalp Sağlığı","Diyabet Yönetimi","Çocuk Sağlığı","Kadın Hastalıkları","Ortopedi","Nöroloji","Onkoloji","Beslenme & Diyet","Psikoloji","Göz Sağlığı","Kulak Burun Boğaz","Dermatoloji","Üroloji","Gastroenteroloji","Göğüs Hastalıkları","Endokrinoloji","Diğer"];
+const TOPICS = [
+  "Kalp Damar Cerrahisi","Kardiyoloji","Kalp Damar Hastalıkları",
+  "Onkoloji (Tıbbi Onkoloji)","Çocuk Onkolojisi","Radyasyon Onkolojisi",
+  "Ortopedi ve Travmatoloji","Beyin ve Sinir Cerrahisi","Genel Cerrahi",
+  "Üroloji","Kadın Hastalıkları ve Doğum","Kulak Burun Boğaz (KBB)",
+  "Göz Hastalıkları","Diş Hekimliği","Ağız Diş ve Çene Cerrahisi",
+  "Çocuk Sağlığı ve Hastalıkları","Yenidoğan","Çocuk Cerrahisi",
+  "Nöroloji (Beyin ve Sinir Hastalıkları)","Dahiliye (İç Hastalıkları)",
+  "Endokrinoloji ve Metabolizma","Gastroenteroloji","Hematoloji",
+  "Enfeksiyon Hastalıkları","Göğüs Hastalıkları","Allerji ve İmmünoloji",
+  "Fiziksel Tıp ve Rehabilitasyon","Romatolo ji","Dermatoloji (Cildiye)",
+  "Plastik Rekons trüktif ve Estetik Cerrahi","Anestezi ve Reanimasyon",
+  "Radyoloji","Nükleer Tıp","Patoloji",
+  "Tıbbi Biyokimya","Tıbbi Mikrobiyoloji","Beslenme ve Diyet",
+  "Fizik Tedavi","Psikoloji","Psikiyatri",
+  "Göğüs Cerrahisi","Periferik Damar Cerrahisi",
+  "Tıbbi Genetik","Check-Up","Aile Hekimliği","Diğer"
+];
 const STATUS    = {
   waiting:   { label:"Paylaşımı Bekleniyor", color:"#EF4444", bg:"#FEF2F2", border:"#FECACA" },
   scheduled: { label:"Planlandı",            color:"#1A56DB", bg:"#EFF6FF", border:"#BFDBFE" },
@@ -338,11 +519,36 @@ window.showToast = (msg, type="success") => {
 
 // SELECTS
 function initSelects() {
-  const ls = document.getElementById("f-location");
-  LOCATIONS.forEach(l => { const o=document.createElement("option"); o.value=l; o.textContent=l; ls.appendChild(o); });
+  // Populate all location dropdowns
+  document.querySelectorAll(".location-input").forEach(sel => {
+    sel.innerHTML = '<option value="">Seçiniz…</option>' + LOCATIONS.map(l => `<option value="${l}">${l}</option>`).join("");
+  });
+  // Populate topic dropdown
   const ts = document.getElementById("f-topic");
-  TOPICS.forEach(t => { const o=document.createElement("option"); o.value=t; o.textContent=t; ts.appendChild(o); });
+  ts.innerHTML = '<option value="">Seçiniz…</option>' + TOPICS.map(t => `<option value="${t}">${t}</option>`).join("");
 }
+
+// MULTI LOCATION
+window.addLocationRow = () => {
+  const container = document.getElementById("locations-container");
+  const row = document.createElement("div");
+  row.className = "multi-input-row";
+  row.innerHTML = `
+    <select class="form-control location-input"><option value="">Seçiniz…</option>${LOCATIONS.map(l=>`<option value="${l}">${l}</option>`).join("")}</select>
+    <button type="button" class="btn btn-icon btn-remove" onclick="this.parentElement.remove()">−</button>`;
+  container.appendChild(row);
+};
+
+// MULTI DOCTOR
+window.addDoctorRow = () => {
+  const container = document.getElementById("doctors-container");
+  const row = document.createElement("div");
+  row.className = "multi-input-row";
+  row.innerHTML = `
+    <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" />
+    <button type="button" class="btn btn-icon btn-remove" onclick="this.parentElement.remove()">−</button>`;
+  container.appendChild(row);
+};
 
 // REAL-TIME
 function startListener() {
@@ -360,15 +566,26 @@ function startListener() {
 }
 
 // CRUD
-const addNews    = data => addDoc(col, { ...data, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
-const updateNews = (id,data) => updateDoc(doc(db,"haberler",id), { ...data, updatedAt:serverTimestamp() });
+const addNews = data => addDoc(col, {
+  ...data,
+  createdBy: currentUser?.email || "unknown",
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+  updatedBy: currentUser?.email || "unknown"
+});
+const updateNews = (id, data) => updateDoc(doc(db, "haberler", id), {
+  ...data,
+  updatedAt: serverTimestamp(),
+  updatedBy: currentUser?.email || "unknown"
+});
 window.deleteItem = async id => {
-  await deleteDoc(doc(db,"haberler",id));
-  closeModal("delete-modal"); showToast("Haber silindi.","error");
+  await deleteDoc(doc(db, "haberler", id));
+  closeModal("delete-modal");
+  showToast("Haber silindi.", "error");
 };
 window.publishItem = async id => {
-  const item = news.find(n=>n.id===id);
-  await updateNews(id, { status:"published", publishDate: item?.publishDate||todayStr() });
+  const item = news.find(n => n.id === id);
+  await updateNews(id, { status: "published", publishDate: item?.publishDate || todayStr() });
   showToast("Haber yayınlandı!");
 };
 
@@ -424,16 +641,18 @@ function renderList() {
     const today=isToday(item.publishDate), tmrw=isTomorrow(item.publishDate);
     const dc=today?"#F59E0B":tmrw?"#1A56DB":"var(--text-soft)";
     const ds=today?" (Bugün!)":tmrw?" (Yarın)":"";
+    const locs = Array.isArray(item.locations) ? item.locations : (item.location ? [item.location] : []);
+    const docs = Array.isArray(item.doctors) ? item.doctors : (item.doctor ? [item.doctor] : []);
     return `<div class="news-card" style="border-left-color:${st.color}" onclick="openDetail('${item.id}')">
       ${item.priority?`<div class="priority-badge">⭐ ÖNCELİKLİ</div>`:""}
       <div class="card-top">
-        <span class="loc-badge">📍 ${item.location||"—"}</span>
+        <span class="loc-badge">📍 ${locs.length>1?locs[0]+" +"+( locs.length-1):locs[0]||"—"}</span>
         <span class="status-badge" style="color:${st.color};background:${st.bg};border-color:${st.border}">
           <span class="status-dot" style="background:${st.color}"></span>${st.label}
         </span>
       </div>
       <div class="card-title">${item.title||"—"}</div>
-      <div class="card-doctor">👨‍⚕️ ${item.doctor||"—"}</div>
+      <div class="card-doctor">👨‍⚕️ ${docs.length>1?docs[0]+" +"+(docs.length-1)+" doktor":docs[0]||"—"}</div>
       ${item.topic?`<div class="card-bolum"><span class="bolum-label">BÖLÜM</span><span style="font-size:10px;color:var(--text-soft)">·</span><span class="bolum-val">${item.topic}</span></div>`:""}
       <div class="card-dates">
         <span>🎬 ${fmtDate(item.shootDate)}</span>
@@ -453,6 +672,8 @@ window.openDetail = id => {
   const dc=today?"#F59E0B":tmrw?"#1A56DB":"var(--text)";
   const ds=today?" — Bugün!":tmrw?" — Yarın":"";
   const ts = item.createdAt?.toDate ? item.createdAt.toDate().toLocaleString("tr-TR") : "—";
+  const locs = Array.isArray(item.locations) ? item.locations : (item.location ? [item.location] : []);
+  const docs = Array.isArray(item.doctors) ? item.doctors : (item.doctor ? [item.doctor] : []);
   document.getElementById("detail-actions").innerHTML =
     `<button class="btn btn-ghost" onclick="openEditModal('${id}')">✏️ Düzenle</button>
      ${item.status!=="published"?`<button class="btn btn-success" onclick="publishItem('${id}')">✅ Yayınla</button>`:""}
@@ -469,13 +690,20 @@ window.openDetail = id => {
       ${item.topic?`<div style="margin-top:6px"><span style="font-size:11px;font-weight:700;color:var(--text-soft)">BÖLÜM</span> <span style="color:var(--text-soft)">·</span> <span style="font-weight:600;color:var(--text-mid)">${item.topic}</span></div>`:""}
     </div>
     <div class="detail-grid">
-      <div class="detail-field"><div class="detail-field-lbl">📍 LOKASYON</div><div class="detail-field-val">${item.location||"—"}</div></div>
-      <div class="detail-field"><div class="detail-field-lbl">👨‍⚕️ DOKTOR</div><div class="detail-field-val">${item.doctor||"—"}</div></div>
+      <div class="detail-field" style="${locs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">📍 LOKASYONLAR</div><div class="detail-field-val">${locs.join(", ")||"—"}</div></div>
+      <div class="detail-field" style="${docs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">👨‍⚕️ DOKTORLAR</div><div class="detail-field-val">${docs.join(", ")||"—"}</div></div>
       <div class="detail-field"><div class="detail-field-lbl">🎬 ÇEKİM TARİHİ</div><div class="detail-field-val">${fmtDate(item.shootDate)}</div></div>
       <div class="detail-field"><div class="detail-field-lbl">📤 PAYLAŞIM TARİHİ</div><div class="detail-field-val" style="color:${dc}">${fmtDate(item.publishDate)}${ds}</div></div>
     </div>
+    ${item.link?`<div style="background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:11px;padding:13px 15px;margin-bottom:12px">
+      <div style="font-size:10px;font-weight:700;color:var(--blue);letter-spacing:0.5px;margin-bottom:6px">🔗 HABER LİNKİ</div>
+      <a href="${item.link}" target="_blank" rel="noopener" style="font-size:13px;color:var(--blue);word-break:break-all;text-decoration:none;font-weight:600">${item.link}</a>
+    </div>`:""}
     ${item.notes?`<div class="notes-box"><div class="notes-lbl">📝 NOTLAR</div><div class="notes-val">${item.notes}</div></div>`:""}
-    <div class="detail-meta">Oluşturulma: ${ts}</div>`;
+    <div class="detail-meta">
+      ${item.createdBy?`Oluşturan: <strong>${item.createdBy}</strong> · `:""}${ts}
+      ${item.updatedBy && item.updatedBy !== item.createdBy?`<br>Güncelleyen: <strong>${item.updatedBy}</strong>`:""}
+    </div>`;
   document.getElementById("detail-modal").style.display = "flex";
 };
 
@@ -504,18 +732,29 @@ window.openEditModal = id => {
   document.getElementById("form-modal").style.display = "flex";
 };
 function resetForm() {
-  ["f-location","f-topic","f-title","f-doctor","f-shoot-date","f-publish-date","f-notes","f-custom-topic"]
+  ["f-topic","f-title","f-shoot-date","f-publish-date","f-link","f-notes","f-custom-topic"]
     .forEach(id => { const el=document.getElementById(id); if(el) el.value=""; });
   document.getElementById("f-status").value = "waiting";
   document.getElementById("f-priority").checked = false;
   document.getElementById("custom-topic-wrap").style.display = "none";
+  
+  // Reset multi-inputs to single row
+  document.getElementById("locations-container").innerHTML = `
+    <div class="multi-input-row">
+      <select class="form-control location-input"><option value="">Seçiniz…</option>${LOCATIONS.map(l=>`<option value="${l}">${l}</option>`).join("")}</select>
+      <button type="button" class="btn btn-icon btn-add" onclick="addLocationRow()">+</button>
+    </div>`;
+  document.getElementById("doctors-container").innerHTML = `
+    <div class="multi-input-row">
+      <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" />
+      <button type="button" class="btn btn-icon btn-add" onclick="addDoctorRow()">+</button>
+    </div>`;
 }
 function fillForm(item) {
-  document.getElementById("f-location").value    = item.location    ||"";
   document.getElementById("f-title").value        = item.title       ||"";
-  document.getElementById("f-doctor").value       = item.doctor      ||"";
   document.getElementById("f-shoot-date").value   = item.shootDate   ||"";
   document.getElementById("f-publish-date").value = item.publishDate ||"";
+  document.getElementById("f-link").value         = item.link        ||"";
   document.getElementById("f-status").value       = item.status      ||"waiting";
   document.getElementById("f-notes").value        = item.notes       ||"";
   document.getElementById("f-priority").checked   = !!item.priority;
@@ -523,6 +762,34 @@ function fillForm(item) {
   document.getElementById("f-topic").value        = known ? item.topic : (item.topic?"Diğer":"");
   document.getElementById("f-custom-topic").value = known ? "" : (item.topic||"");
   document.getElementById("custom-topic-wrap").style.display = (!known&&item.topic)?"block":"none";
+  
+  // Fill locations
+  const locs = Array.isArray(item.locations) ? item.locations : (item.location ? [item.location] : []);
+  const locContainer = document.getElementById("locations-container");
+  locContainer.innerHTML = "";
+  if (locs.length === 0) locs.push("");
+  locs.forEach((loc, i) => {
+    const row = document.createElement("div");
+    row.className = "multi-input-row";
+    row.innerHTML = `
+      <select class="form-control location-input"><option value="">Seçiniz…</option>${LOCATIONS.map(l=>`<option value="${l}" ${l===loc?"selected":""}>${l}</option>`).join("")}</select>
+      <button type="button" class="btn btn-icon ${i===0?"btn-add":"btn-remove"}" onclick="${i===0?"addLocationRow()":"this.parentElement.remove()"}">${i===0?"+":"−"}</button>`;
+    locContainer.appendChild(row);
+  });
+  
+  // Fill doctors
+  const docs = Array.isArray(item.doctors) ? item.doctors : (item.doctor ? [item.doctor] : []);
+  const docContainer = document.getElementById("doctors-container");
+  docContainer.innerHTML = "";
+  if (docs.length === 0) docs.push("");
+  docs.forEach((doc, i) => {
+    const row = document.createElement("div");
+    row.className = "multi-input-row";
+    row.innerHTML = `
+      <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" value="${doc||''}" />
+      <button type="button" class="btn btn-icon ${i===0?"btn-add":"btn-remove"}" onclick="${i===0?"addDoctorRow()":"this.parentElement.remove()"}">${i===0?"+":"−"}</button>`;
+    docContainer.appendChild(row);
+  });
 }
 window.handleTopicChange = () => {
   document.getElementById("custom-topic-wrap").style.display =
@@ -533,17 +800,35 @@ window.autoStatus = () => {
   if (pd&&st.value==="waiting") st.value="scheduled";
 };
 window.handleSubmit = async () => {
-  const loc=document.getElementById("f-location").value, title=document.getElementById("f-title").value.trim(),
-        doctor=document.getElementById("f-doctor").value.trim(), shoot=document.getElementById("f-shoot-date").value;
-  if (!loc||!title||!doctor||!shoot) { showToast("Lokasyon, başlık, doktor ve çekim tarihi zorunludur.","error"); return; }
-  const topicRaw=document.getElementById("f-topic").value;
+  // Collect locations
+  const locations = Array.from(document.querySelectorAll(".location-input")).map(s => s.value).filter(Boolean);
+  // Collect doctors
+  const doctors = Array.from(document.querySelectorAll(".doctor-input")).map(i => i.value.trim()).filter(Boolean);
+  
+  const title = document.getElementById("f-title").value.trim();
+  const shoot = document.getElementById("f-shoot-date").value;
+  
+  if (locations.length === 0 || doctors.length === 0 || !title || !shoot) {
+    showToast("En az 1 lokasyon, 1 doktor, başlık ve çekim tarihi zorunludur.","error");
+    return;
+  }
+  
+  const topicRaw = document.getElementById("f-topic").value;
   const topic = topicRaw==="Diğer" ? document.getElementById("f-custom-topic").value.trim() : topicRaw;
-  const data = { location:loc, title, doctor, topic,
-    shootDate:document.getElementById("f-shoot-date").value,
-    publishDate:document.getElementById("f-publish-date").value,
-    status:document.getElementById("f-status").value,
-    notes:document.getElementById("f-notes").value.trim(),
-    priority:document.getElementById("f-priority").checked };
+  
+  const data = {
+    locations, doctors, title, topic,
+    shootDate:   document.getElementById("f-shoot-date").value,
+    publishDate: document.getElementById("f-publish-date").value,
+    link:        document.getElementById("f-link").value.trim(),
+    status:      document.getElementById("f-status").value,
+    notes:       document.getElementById("f-notes").value.trim(),
+    priority:    document.getElementById("f-priority").checked,
+    // Keep legacy fields for compatibility
+    location: locations[0] || "",
+    doctor:   doctors[0]   || "",
+  };
+  
   const btn=document.getElementById("submit-btn");
   btn.disabled=true; btn.textContent="Kaydediliyor…";
   try {
@@ -570,6 +855,57 @@ window.switchTab = tab => {
   document.getElementById("tab-rapor").classList.toggle("active",    tab==="rapor");
   document.getElementById("btn-haber-ekle").style.display = tab==="haberler" ? "" : "none";
   if (tab==="rapor") renderReport();
+};
+
+// EXPORT REPORT
+window.exportReport = () => {
+  const period = document.getElementById("period-select").value;
+  const published = news.filter(n => {
+    if (n.status !== "published") return false;
+    if (period === "all") return true;
+    const d = n.publishDate;
+    if (!d) return false;
+    const now = new Date(), pd = new Date(d);
+    if (period === "thismonth")  return pd.getMonth()===now.getMonth() && pd.getFullYear()===now.getFullYear();
+    if (period === "lastmonth") { const lm=new Date(now.getFullYear(),now.getMonth()-1,1); return pd.getMonth()===lm.getMonth()&&pd.getFullYear()===lm.getFullYear(); }
+    if (period === "thisyear")   return pd.getFullYear()===now.getFullYear();
+    return true;
+  });
+
+  // Prepare CSV data
+  const headers = ["Başlık", "Lokasyonlar", "Doktorlar", "Bölüm", "Çekim Tarihi", "Paylaşım Tarihi", "Durum", "Link", "Notlar"];
+  const rows = published.map(n => {
+    const locs = Array.isArray(n.locations) ? n.locations.join("; ") : (n.location || "");
+    const docs = Array.isArray(n.doctors) ? n.doctors.join("; ") : (n.doctor || "");
+    return [
+      n.title || "",
+      locs,
+      docs,
+      n.topic || "",
+      fmtDate(n.shootDate),
+      fmtDate(n.publishDate),
+      STATUS[n.status]?.label || n.status,
+      n.link || "",
+      (n.notes || "").replace(/"/g, '""')
+    ];
+  });
+
+  // Create CSV
+  const csvContent = [
+    headers.map(h => `"${h}"`).join(","),
+    ...rows.map(row => row.map(cell => `"${cell}"`).join(","))
+  ].join("\n");
+
+  // Add BOM for Excel UTF-8 support
+  const blob = new Blob(["\uFEFF" + csvContent], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  const periodLabel = {all:"Tum-Zamanlar",thismonth:"Bu-Ay",lastmonth:"Gecen-Ay",thisyear:"Bu-Yil"}[period] || period;
+  link.download = `Haber-Raporu-${periodLabel}-${new Date().toISOString().split("T")[0]}.csv`;
+  link.click();
+  URL.revokeObjectURL(url);
+  showToast("Rapor indirildi!", "success");
 };
 
 // REPORT
@@ -706,8 +1042,7 @@ window.renderReport = () => {
 
 function renderAll() { renderAlerts(); renderStats(); buildLocChips(); buildStatusChips(); renderList(); }
 
-initSelects();
-startListener();
+// Auth observer (onAuthStateChanged) handles initialization
 </script>
 </body>
 </html>
