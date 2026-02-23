@@ -189,9 +189,45 @@
     .search-input { width: 100%; }
     .tab-btn { padding: 7px 12px; font-size: 12px; }
   }
+
+  /* LOGIN SCREEN */
+  #login-screen { position: fixed; inset: 0; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .login-card { background: white; border-radius: 20px; padding: 40px; max-width: 420px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+  .login-header { text-align: center; margin-bottom: 32px; }
+  .login-logo { width: 60px; height: 60px; background: var(--blue); border-radius: 14px; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 16px; }
+  .login-title { font-family: 'DM Serif Display', serif; font-size: 24px; color: var(--text); margin-bottom: 6px; }
+  .login-subtitle { font-size: 14px; color: var(--text-soft); }
+  .login-form { display: flex; flex-direction: column; gap: 16px; }
+  .login-input { padding: 12px 16px; border: 2px solid var(--border); border-radius: 12px; font-size: 14px; font-family: inherit; transition: border-color .15s; }
+  .login-input:focus { outline: none; border-color: var(--blue); }
+  .login-btn { background: var(--blue); color: white; border: none; padding: 13px; border-radius: 12px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background .15s; }
+  .login-btn:hover { background: #1447C0; }
+  .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+  .login-error { background: var(--red-bg); color: var(--red); padding: 10px 14px; border-radius: 10px; font-size: 13px; text-align: center; border: 1.5px solid var(--red-border); }
+  .user-badge { display: flex; align-items: center; gap: 8px; background: var(--blue-bg); padding: 6px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; color: var(--blue); }
+  .user-initial { width: 24px; height: 24px; background: var(--blue); color: white; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 700; }
 </style>
 </head>
 <body>
+
+<!-- LOGIN SCREEN -->
+<div id="login-screen">
+  <div class="login-card">
+    <div class="login-header">
+      <div class="login-logo">📰</div>
+      <div class="login-title">Haber Yönetim Sistemi</div>
+      <div class="login-subtitle">Hastane Medya Ekibi</div>
+    </div>
+    <div class="login-form">
+      <div id="login-error" class="login-error" style="display:none"></div>
+      <input type="text" id="login-name" class="login-input" placeholder="Adınız Soyadınız" autocomplete="name" />
+      <button id="login-btn" class="login-btn">Başla</button>
+      <div style="text-align:center;font-size:12px;color:var(--text-soft);margin-top:8px">
+        Kim olduğunuzu belirtmek için sadece adınızı yazın
+      </div>
+    </div>
+  </div>
+</div>
 
 <div id="loading-screen">
   <div style="width:42px;height:42px;background:var(--blue);border-radius:11px;display:flex;align-items:center;justify-content:center;font-size:22px">📰</div>
@@ -214,6 +250,11 @@
         <button class="tab-btn" id="tab-rapor" onclick="switchTab('rapor')">📊 Rapor</button>
       </div>
       <span class="sync-label"><span class="sync-dot" id="sync-dot"></span><span id="sync-label">Bağlanıyor…</span></span>
+      <div class="user-badge" id="user-badge">
+        <div class="user-initial" id="user-initial">?</div>
+        <span id="user-name">Kullanıcı</span>
+        <button id="logout-btn" style="background:none;border:none;color:var(--blue);cursor:pointer;font-size:18px;padding:0;line-height:1">×</button>
+      </div>
       <button class="btn btn-primary" id="btn-haber-ekle" onclick="openAddModal()">+ Haber Ekle</button>
     </div>
   </div>
@@ -330,6 +371,8 @@
 import { initializeApp }    from "https://www.gstatic.com/firebasejs/11.0.1/firebase-app.js";
 import { getFirestore, collection, onSnapshot, addDoc, updateDoc, deleteDoc, doc, serverTimestamp, query, orderBy }
   from "https://www.gstatic.com/firebasejs/11.0.1/firebase-firestore.js";
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut }
+  from "https://www.gstatic.com/firebasejs/11.0.1/firebase-auth.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyB1ZuYFHRvvzLGS8OQBEkByJCBpn41WX0s",
@@ -343,7 +386,55 @@ const firebaseConfig = {
 
 const app = initializeApp(firebaseConfig);
 const db  = getFirestore(app);
+const auth = getAuth(app);
 const col = collection(db, "haberler");
+
+let currentUser = null;
+
+// SIMPLE AUTH WITHOUT FIREBASE
+function checkLocalAuth() {
+  const userName = localStorage.getItem("haber_user_name");
+  if (userName) {
+    currentUser = { name: userName };
+    showApp(userName);
+  } else {
+    document.getElementById("login-screen").style.display = "flex";
+    document.getElementById("loading-screen").style.display = "none";
+  }
+}
+
+function showApp(name) {
+  document.getElementById("login-screen").style.display = "none";
+  document.getElementById("loading-screen").style.display = "none";
+  const initial = name.charAt(0).toUpperCase();
+  document.getElementById("user-name").textContent = name;
+  document.getElementById("user-initial").textContent = initial;
+  initSelects();
+  startListener();
+}
+
+async function handleLogin() {
+  const name = document.getElementById("login-name").value.trim();
+  const errDiv = document.getElementById("login-error");
+  
+  if (!name || name.length < 2) {
+    errDiv.textContent = "Lütfen adınızı yazın (en az 2 karakter)";
+    errDiv.style.display = "block";
+    return;
+  }
+  
+  localStorage.setItem("haber_user_name", name);
+  currentUser = { name };
+  errDiv.style.display = "none";
+  showApp(name);
+}
+
+async function handleLogout() {
+  if (confirm("Çıkış yapmak istediğinizden emin misiniz?")) {
+    localStorage.removeItem("haber_user_name");
+    location.reload();
+  }
+}
 
 const LOCATIONS = ["Mega","Acıbadem","Bahçelievler","Koşuyolu","Pendik","Çamlıca","Vatan","Unkapanı","Esenler","Sefaköy"];
 const TOPICS = [
@@ -378,6 +469,14 @@ const todayStr    = () => new Date().toISOString().split("T")[0];
 const tomorrowStr = () => { const t=new Date(); t.setDate(t.getDate()+1); return t.toISOString().split("T")[0]; };
 const isToday    = d => d === todayStr();
 const isTomorrow = d => d === tomorrowStr();
+
+// XSS PROTECTION
+const escapeHtml = (text) => {
+  if (!text) return "";
+  const div = document.createElement('div');
+  div.textContent = text;
+  return div.innerHTML;
+};
 
 // TOAST
 window.showToast = (msg, type="success") => {
@@ -437,15 +536,26 @@ function startListener() {
 }
 
 // CRUD
-const addNews    = data => addDoc(col, { ...data, createdAt:serverTimestamp(), updatedAt:serverTimestamp() });
-const updateNews = (id,data) => updateDoc(doc(db,"haberler",id), { ...data, updatedAt:serverTimestamp() });
+const addNews = data => addDoc(col, {
+  ...data,
+  createdBy: currentUser?.name || "Bilinmeyen",
+  createdAt: serverTimestamp(),
+  updatedAt: serverTimestamp(),
+  updatedBy: currentUser?.name || "Bilinmeyen"
+});
+const updateNews = (id, data) => updateDoc(doc(db, "haberler", id), {
+  ...data,
+  updatedAt: serverTimestamp(),
+  updatedBy: currentUser?.name || "Bilinmeyen"
+});
 window.deleteItem = async id => {
-  await deleteDoc(doc(db,"haberler",id));
-  closeModal("delete-modal"); showToast("Haber silindi.","error");
+  await deleteDoc(doc(db, "haberler", id));
+  closeModal("delete-modal");
+  showToast("Haber silindi.", "error");
 };
 window.publishItem = async id => {
-  const item = news.find(n=>n.id===id);
-  await updateNews(id, { status:"published", publishDate: item?.publishDate||todayStr() });
+  const item = news.find(n => n.id === id);
+  await updateNews(id, { status: "published", publishDate: item?.publishDate || todayStr() });
   showToast("Haber yayınlandı!");
 };
 
@@ -478,8 +588,8 @@ function renderAlerts() {
   const ti=news.filter(n=>isToday(n.publishDate)&&n.status!=="published");
   const tm=news.filter(n=>isTomorrow(n.publishDate)&&n.status!=="published");
   document.getElementById("alerts-section").innerHTML =
-    (ti.length?`<div class="alert alert-amber">🔔 <span><strong>Bugün paylaşılacak ${ti.length} haber var:</strong> ${ti.map(n=>n.doctor||n.title).join(", ")}</span></div>`:"") +
-    (tm.length?`<div class="alert alert-blue" style="margin-bottom:18px">📅 <span><strong>Yarın paylaşılacak ${tm.length} haber var:</strong> ${tm.map(n=>n.doctor||n.title).join(", ")}</span></div>`:"");
+    (ti.length?`<div class="alert alert-amber">🔔 <span><strong>Bugün paylaşılacak ${ti.length} haber var:</strong> ${ti.map(n=>escapeHtml(n.doctor||n.title)).join(", ")}</span></div>`:"") +
+    (tm.length?`<div class="alert alert-blue" style="margin-bottom:18px">📅 <span><strong>Yarın paylaşılacak ${tm.length} haber var:</strong> ${tm.map(n=>escapeHtml(n.doctor||n.title)).join(", ")}</span></div>`:"");
 }
 
 // LIST
@@ -506,14 +616,14 @@ function renderList() {
     return `<div class="news-card" style="border-left-color:${st.color}" onclick="openDetail('${item.id}')">
       ${item.priority?`<div class="priority-badge">⭐ ÖNCELİKLİ</div>`:""}
       <div class="card-top">
-        <span class="loc-badge">📍 ${locs.length>1?locs[0]+" +"+( locs.length-1):locs[0]||"—"}</span>
+        <span class="loc-badge">📍 ${escapeHtml(locs.length>1?locs[0]+" +"+(locs.length-1):locs[0]||"—")}</span>
         <span class="status-badge" style="color:${st.color};background:${st.bg};border-color:${st.border}">
           <span class="status-dot" style="background:${st.color}"></span>${st.label}
         </span>
       </div>
-      <div class="card-title">${item.title||"—"}</div>
-      <div class="card-doctor">👨‍⚕️ ${docs.length>1?docs[0]+" +"+(docs.length-1)+" doktor":docs[0]||"—"}</div>
-      ${item.topic?`<div class="card-bolum"><span class="bolum-label">BÖLÜM</span><span style="font-size:10px;color:var(--text-soft)">·</span><span class="bolum-val">${item.topic}</span></div>`:""}
+      <div class="card-title">${escapeHtml(item.title)||"—"}</div>
+      <div class="card-doctor">👨‍⚕️ ${escapeHtml(docs.length>1?docs[0]+" +"+(docs.length-1)+" doktor":docs[0]||"—")}</div>
+      ${item.topic?`<div class="card-bolum"><span class="bolum-label">BÖLÜM</span><span style="font-size:10px;color:var(--text-soft)">·</span><span class="bolum-val">${escapeHtml(item.topic)}</span></div>`:""}
       <div class="card-dates">
         <span>🎬 ${fmtDate(item.shootDate)}</span>
         ${item.publishDate?`<span style="color:${dc};font-weight:${today||tmrw?700:400}">📤 ${fmtDate(item.publishDate)}${ds}</span>`:""}
@@ -546,21 +656,24 @@ window.openDetail = id => {
         </span>
         ${item.priority?`<span style="background:var(--amber-bg);color:#D97706;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;border:1.5px solid var(--amber-border)">⭐ ÖNCELİKLİ</span>`:""}
       </div>
-      <div class="detail-main-title">${item.title||"Başlıksız"}</div>
-      ${item.topic?`<div style="margin-top:6px"><span style="font-size:11px;font-weight:700;color:var(--text-soft)">BÖLÜM</span> <span style="color:var(--text-soft)">·</span> <span style="font-weight:600;color:var(--text-mid)">${item.topic}</span></div>`:""}
+      <div class="detail-main-title">${escapeHtml(item.title)||"Başlıksız"}</div>
+      ${item.topic?`<div style="margin-top:6px"><span style="font-size:11px;font-weight:700;color:var(--text-soft)">BÖLÜM</span> <span style="color:var(--text-soft)">·</span> <span style="font-weight:600;color:var(--text-mid)">${escapeHtml(item.topic)}</span></div>`:""}
     </div>
     <div class="detail-grid">
-      <div class="detail-field" style="${locs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">📍 LOKASYONLAR</div><div class="detail-field-val">${locs.join(", ")||"—"}</div></div>
-      <div class="detail-field" style="${docs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">👨‍⚕️ DOKTORLAR</div><div class="detail-field-val">${docs.join(", ")||"—"}</div></div>
+      <div class="detail-field" style="${locs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">📍 LOKASYONLAR</div><div class="detail-field-val">${locs.map(escapeHtml).join(", ")||"—"}</div></div>
+      <div class="detail-field" style="${docs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">👨‍⚕️ DOKTORLAR</div><div class="detail-field-val">${docs.map(escapeHtml).join(", ")||"—"}</div></div>
       <div class="detail-field"><div class="detail-field-lbl">🎬 ÇEKİM TARİHİ</div><div class="detail-field-val">${fmtDate(item.shootDate)}</div></div>
       <div class="detail-field"><div class="detail-field-lbl">📤 PAYLAŞIM TARİHİ</div><div class="detail-field-val" style="color:${dc}">${fmtDate(item.publishDate)}${ds}</div></div>
     </div>
     ${item.link?`<div style="background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:11px;padding:13px 15px;margin-bottom:12px">
       <div style="font-size:10px;font-weight:700;color:var(--blue);letter-spacing:0.5px;margin-bottom:6px">🔗 HABER LİNKİ</div>
-      <a href="${item.link}" target="_blank" rel="noopener" style="font-size:13px;color:var(--blue);word-break:break-all;text-decoration:none;font-weight:600">${item.link}</a>
+      <a href="${escapeHtml(item.link)}" target="_blank" rel="noopener" style="font-size:13px;color:var(--blue);word-break:break-all;text-decoration:none;font-weight:600">${escapeHtml(item.link)}</a>
     </div>`:""}
-    ${item.notes?`<div class="notes-box"><div class="notes-lbl">📝 NOTLAR</div><div class="notes-val">${item.notes}</div></div>`:""}
-    <div class="detail-meta">Oluşturulma: ${ts}</div>`;
+    ${item.notes?`<div class="notes-box"><div class="notes-lbl">📝 NOTLAR</div><div class="notes-val">${escapeHtml(item.notes)}</div></div>`:""}
+    <div class="detail-meta">
+      ${item.createdBy?`Oluşturan: <strong>${escapeHtml(item.createdBy)}</strong> · `:""}${ts}
+      ${item.updatedBy && item.updatedBy !== item.createdBy?`<br>Güncelleyen: <strong>${escapeHtml(item.updatedBy)}</strong>`:""}
+    </div>`;
   document.getElementById("detail-modal").style.display = "flex";
 };
 
@@ -899,8 +1012,20 @@ window.renderReport = () => {
 
 function renderAll() { renderAlerts(); renderStats(); buildLocChips(); buildStatusChips(); renderList(); }
 
-initSelects();
-startListener();
+// INITIALIZE - Run after DOM and Firebase ready
+setTimeout(() => {
+  const loginBtn = document.getElementById("login-btn");
+  const logoutBtn = document.getElementById("logout-btn");
+  const loginName = document.getElementById("login-name");
+  
+  if (loginBtn) loginBtn.addEventListener("click", handleLogin);
+  if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
+  if (loginName) loginName.addEventListener("keypress", e => { if (e.key === "Enter") handleLogin(); });
+  
+  checkLocalAuth();
+}, 100);
+
+// Auth observer (onAuthStateChanged) handles initialization
 </script>
 </body>
 </html>
