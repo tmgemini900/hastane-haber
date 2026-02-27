@@ -220,10 +220,11 @@
     </div>
     <div class="login-form">
       <div id="login-error" class="login-error" style="display:none"></div>
-      <input type="text" id="login-name" class="login-input" placeholder="Adınız Soyadınız" autocomplete="name" />
-      <button id="login-btn" class="login-btn">Başla</button>
+      <input type="email" id="login-email" class="login-input" placeholder="E-posta adresi" autocomplete="email" />
+      <input type="password" id="login-password" class="login-input" placeholder="Şifre" autocomplete="current-password" />
+      <button id="login-btn" class="login-btn">Giriş Yap</button>
       <div style="text-align:center;font-size:12px;color:var(--text-soft);margin-top:8px">
-        Kim olduğunuzu belirtmek için sadece adınızı yazın
+        İlk kez giriş yapıyorsanız hesap otomatik oluşturulacaktır
       </div>
     </div>
   </div>
@@ -332,16 +333,8 @@
           </select>
         </div>
         <div class="form-group form-full"><label>PAYLAŞIM TARİHİ <span style="font-weight:400;color:var(--text-soft)">(girilince otomatik Planlandı olur)</span></label><input class="form-control" type="date" id="f-publish-date" onchange="autoStatus()" /></div>
-        <div class="form-group form-full">
-          <label>HABER LİNKLERİ <span style="font-weight:400;color:var(--text-soft)">(sosyal medya, web vb. birden fazla ekleyebilirsiniz)</span></label>
-          <div class="multi-input-container" id="links-container">
-            <div class="multi-input-row">
-              <input class="form-control link-input" type="url" placeholder="https://…" />
-              <button type="button" class="btn btn-icon btn-add" onclick="addLinkRow()">+</button>
-            </div>
-          </div>
-        </div>
-        <div class="form-group form-full"><label>NOTLAR / ÖNEMLİ GÜNLER</label><textarea class="form-control" id="f-notes" placeholder="Açıklamalar, önemli günler, hatırlatmalar… (max 500 karakter)" maxlength="500"></textarea></div>
+        <div class="form-group form-full"><label>HABER LİNKİ <span style="font-weight:400;color:var(--text-soft)">(paylaşılan haberin sosyal medya veya web linki)</span></label><input class="form-control" type="url" id="f-link" placeholder="https://…" /></div>
+        <div class="form-group form-full"><label>NOTLAR / ÖNEMLİ GÜNLER</label><textarea class="form-control" id="f-notes" placeholder="Açıklamalar, önemli günler, hatırlatmalar…"></textarea></div>
         <div class="form-group form-full"><label class="checkbox-row"><input type="checkbox" id="f-priority" /><span>⭐ Öncelikli haber olarak işaretle</span></label></div>
       </div>
     </div>
@@ -399,50 +392,87 @@ const col = collection(db, "haberler");
 
 let currentUser = null;
 
-// SIMPLE AUTH WITHOUT FIREBASE
-function checkLocalAuth() {
-  const userName = localStorage.getItem("haber_user_name");
-  if (userName) {
-    currentUser = { name: userName };
-    showApp(userName);
-  } else {
-    document.getElementById("login-screen").style.display = "flex";
-    document.getElementById("loading-screen").style.display = "none";
-  }
-}
+// SETUP EVENT LISTENERS
+document.addEventListener("DOMContentLoaded", () => {
+  const loginBtn = document.getElementById("login-btn");
+  const logoutBtn = document.getElementById("logout-btn");
+  const loginPassword = document.getElementById("login-password");
+  
+  if (loginBtn) loginBtn.addEventListener("click", handleLogin);
+  if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
+  if (loginPassword) loginPassword.addEventListener("keypress", e => { if (e.key === "Enter") handleLogin(); });
+});
 
-function showApp(name) {
-  document.getElementById("login-screen").style.display = "none";
-  document.getElementById("loading-screen").style.display = "none";
-  const initial = name.charAt(0).toUpperCase();
-  document.getElementById("user-name").textContent = name;
-  document.getElementById("user-initial").textContent = initial;
-  initSelects();
-  startListener();
-}
-
+// AUTH HANDLERS
 async function handleLogin() {
-  const name = document.getElementById("login-name").value.trim();
+  const email = document.getElementById("login-email").value.trim();
+  const password = document.getElementById("login-password").value;
+  const btn = document.getElementById("login-btn");
   const errDiv = document.getElementById("login-error");
   
-  if (!name || name.length < 2) {
-    errDiv.textContent = "Lütfen adınızı yazın (en az 2 karakter)";
+  if (!email || !password) {
+    errDiv.textContent = "E-posta ve şifre gerekli";
     errDiv.style.display = "block";
     return;
   }
   
-  localStorage.setItem("haber_user_name", name);
-  currentUser = { name };
+  btn.disabled = true;
+  btn.textContent = "Giriş yapılıyor...";
   errDiv.style.display = "none";
-  showApp(name);
-}
+  
+  try {
+    await signInWithEmailAndPassword(auth, email, password);
+  } catch (error) {
+    if (error.code === "auth/user-not-found" || error.code === "auth/invalid-credential") {
+      try {
+        await createUserWithEmailAndPassword(auth, email, password);
+      } catch (createError) {
+        errDiv.textContent = createError.code === "auth/weak-password" 
+          ? "Şifre en az 6 karakter olmalı" 
+          : "Hesap oluşturulamadı: " + createError.message;
+        errDiv.style.display = "block";
+        btn.disabled = false;
+        btn.textContent = "Giriş Yap";
+      }
+    } else {
+      errDiv.textContent = error.code === "auth/wrong-password" 
+        ? "Hatalı şifre" 
+        : error.code === "auth/invalid-email"
+        ? "Geçersiz e-posta adresi"
+        : "Giriş hatası: " + error.message;
+      errDiv.style.display = "block";
+      btn.disabled = false;
+      btn.textContent = "Giriş Yap";
+    }
+  }
+};
 
 async function handleLogout() {
   if (confirm("Çıkış yapmak istediğinizden emin misiniz?")) {
-    localStorage.removeItem("haber_user_name");
-    location.reload();
+    await signOut(auth);
   }
 }
+
+// AUTH STATE OBSERVER
+onAuthStateChanged(auth, user => {
+  if (user) {
+    currentUser = user;
+    document.getElementById("login-screen").style.display = "none";
+    document.getElementById("loading-screen").style.display = "flex";
+    const name = user.email.split("@")[0];
+    const initial = name.charAt(0).toUpperCase();
+    document.getElementById("user-name").textContent = name;
+    document.getElementById("user-initial").textContent = initial;
+    initSelects();
+    startListener();
+  } else {
+    currentUser = null;
+    document.getElementById("login-screen").style.display = "flex";
+    document.getElementById("loading-screen").style.display = "none";
+    const loginBtn = document.getElementById("login-btn");
+    if (loginBtn) { loginBtn.disabled = false; loginBtn.textContent = "Giriş Yap"; }
+  }
+});
 
 const LOCATIONS = ["Mega","Acıbadem","Bahçelievler","Koşuyolu","Pendik","Çamlıca","Vatan","Unkapanı","Esenler","Sefaköy"];
 const TOPICS = [
@@ -477,14 +507,6 @@ const todayStr    = () => new Date().toISOString().split("T")[0];
 const tomorrowStr = () => { const t=new Date(); t.setDate(t.getDate()+1); return t.toISOString().split("T")[0]; };
 const isToday    = d => d === todayStr();
 const isTomorrow = d => d === tomorrowStr();
-
-// XSS PROTECTION
-const escapeHtml = (text) => {
-  if (!text) return "";
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-};
 
 // TOAST
 window.showToast = (msg, type="success") => {
@@ -528,63 +550,33 @@ window.addDoctorRow = () => {
   container.appendChild(row);
 };
 
-// MULTI LINK
-window.addLinkRow = () => {
-  const container = document.getElementById("links-container");
-  if (container.children.length >= 30) {
-    showToast("Maksimum 30 link ekleyebilirsiniz.", "error");
-    return;
-  }
-  const row = document.createElement("div");
-  row.className = "multi-input-row";
-  row.innerHTML = `
-    <input class="form-control link-input" type="url" placeholder="https://…" />
-    <button type="button" class="btn btn-icon btn-remove" onclick="this.parentElement.remove()">−</button>`;
-  container.appendChild(row);
-};
-
 // REAL-TIME
 function startListener() {
   onSnapshot(query(col, orderBy("createdAt","desc")), snap => {
     news = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     document.getElementById("loading-screen").style.display = "none";
-    setSyncState(true);
+    document.getElementById("sync-dot").style.background   = "var(--green)";
+    document.getElementById("sync-label").textContent      = "Canlı";
     renderAll();
     if (openDetailId && document.getElementById("detail-modal").style.display !== "none") openDetail(openDetailId);
-  }, () => setSyncState(false));
-  
-  // Network monitoring
-  window.addEventListener('online', () => {
-    setSyncState(true);
-    showToast("İnternet bağlantısı geri geldi!", "info");
+  }, () => {
+    document.getElementById("sync-dot").style.background = "var(--red)";
+    document.getElementById("sync-label").textContent    = "Bağlantı yok";
   });
-  window.addEventListener('offline', () => {
-    setSyncState(false);
-    showToast("İnternet bağlantısı yok!", "error");
-  });
-}
-
-function setSyncState(ok) {
-  const dot = document.getElementById("sync-dot");
-  const lbl = document.getElementById("sync-label");
-  if (!dot || !lbl) return;
-  dot.style.background = ok ? "var(--green)" : "var(--red)";
-  lbl.textContent = ok ? "Canlı" : "Bağlantı yok";
-  dot.style.animation = ok ? "pulse 2s infinite" : "none";
 }
 
 // CRUD
 const addNews = data => addDoc(col, {
   ...data,
-  createdBy: currentUser?.name || "Bilinmeyen",
+  createdBy: currentUser?.email || "unknown",
   createdAt: serverTimestamp(),
   updatedAt: serverTimestamp(),
-  updatedBy: currentUser?.name || "Bilinmeyen"
+  updatedBy: currentUser?.email || "unknown"
 });
 const updateNews = (id, data) => updateDoc(doc(db, "haberler", id), {
   ...data,
   updatedAt: serverTimestamp(),
-  updatedBy: currentUser?.name || "Bilinmeyen"
+  updatedBy: currentUser?.email || "unknown"
 });
 window.deleteItem = async id => {
   await deleteDoc(doc(db, "haberler", id));
@@ -626,31 +618,18 @@ function renderAlerts() {
   const ti=news.filter(n=>isToday(n.publishDate)&&n.status!=="published");
   const tm=news.filter(n=>isTomorrow(n.publishDate)&&n.status!=="published");
   document.getElementById("alerts-section").innerHTML =
-    (ti.length?`<div class="alert alert-amber">🔔 <span><strong>Bugün paylaşılacak ${ti.length} haber var:</strong> ${ti.map(n=>escapeHtml(n.doctor||n.title)).join(", ")}</span></div>`:"") +
-    (tm.length?`<div class="alert alert-blue" style="margin-bottom:18px">📅 <span><strong>Yarın paylaşılacak ${tm.length} haber var:</strong> ${tm.map(n=>escapeHtml(n.doctor||n.title)).join(", ")}</span></div>`:"");
+    (ti.length?`<div class="alert alert-amber">🔔 <span><strong>Bugün paylaşılacak ${ti.length} haber var:</strong> ${ti.map(n=>n.doctor||n.title).join(", ")}</span></div>`:"") +
+    (tm.length?`<div class="alert alert-blue" style="margin-bottom:18px">📅 <span><strong>Yarın paylaşılacak ${tm.length} haber var:</strong> ${tm.map(n=>n.doctor||n.title).join(", ")}</span></div>`:"");
 }
 
 // LIST
 function renderList() {
   const q = document.getElementById("search-input").value.toLowerCase();
   const filtered = news.filter(n => {
-    const locOk  = filterLoc==="Tümü"    || n.location===filterLoc || (Array.isArray(n.locations) && n.locations.includes(filterLoc));
+    const locOk  = filterLoc==="Tümü"    || n.location===filterLoc;
     const stOk   = filterStatus==="Tümü" || n.status===filterStatus;
-    
-    // Search in title, topic, locations, and doctors
-    if (!q) return locOk && stOk;
-    
-    const searchFields = [
-      n.title,
-      n.topic,
-      n.location,
-      n.doctor,
-      ...(Array.isArray(n.locations) ? n.locations : []),
-      ...(Array.isArray(n.doctors) ? n.doctors : [])
-    ];
-    
-    const srchOk = searchFields.some(v => v && v.toLowerCase().includes(q));
-    return locOk && stOk && srchOk;
+    const srchOk = !q || [n.title,n.doctor,n.topic,n.location].some(v=>v&&v.toLowerCase().includes(q));
+    return locOk&&stOk&&srchOk;
   });
   const grid = document.getElementById("news-grid");
   if (!filtered.length) {
@@ -667,14 +646,14 @@ function renderList() {
     return `<div class="news-card" style="border-left-color:${st.color}" onclick="openDetail('${item.id}')">
       ${item.priority?`<div class="priority-badge">⭐ ÖNCELİKLİ</div>`:""}
       <div class="card-top">
-        <span class="loc-badge">📍 ${escapeHtml(locs.length>1?locs[0]+" +"+(locs.length-1):locs[0]||"—")}</span>
+        <span class="loc-badge">📍 ${locs.length>1?locs[0]+" +"+( locs.length-1):locs[0]||"—"}</span>
         <span class="status-badge" style="color:${st.color};background:${st.bg};border-color:${st.border}">
           <span class="status-dot" style="background:${st.color}"></span>${st.label}
         </span>
       </div>
-      <div class="card-title">${escapeHtml(item.title)||"—"}</div>
-      <div class="card-doctor">👨‍⚕️ ${escapeHtml(docs.length>1?docs[0]+" +"+(docs.length-1)+" doktor":docs[0]||"—")}</div>
-      ${item.topic?`<div class="card-bolum"><span class="bolum-label">BÖLÜM</span><span style="font-size:10px;color:var(--text-soft)">·</span><span class="bolum-val">${escapeHtml(item.topic)}</span></div>`:""}
+      <div class="card-title">${item.title||"—"}</div>
+      <div class="card-doctor">👨‍⚕️ ${docs.length>1?docs[0]+" +"+(docs.length-1)+" doktor":docs[0]||"—"}</div>
+      ${item.topic?`<div class="card-bolum"><span class="bolum-label">BÖLÜM</span><span style="font-size:10px;color:var(--text-soft)">·</span><span class="bolum-val">${item.topic}</span></div>`:""}
       <div class="card-dates">
         <span>🎬 ${fmtDate(item.shootDate)}</span>
         ${item.publishDate?`<span style="color:${dc};font-weight:${today||tmrw?700:400}">📤 ${fmtDate(item.publishDate)}${ds}</span>`:""}
@@ -707,29 +686,23 @@ window.openDetail = id => {
         </span>
         ${item.priority?`<span style="background:var(--amber-bg);color:#D97706;padding:3px 10px;border-radius:20px;font-size:12px;font-weight:700;border:1.5px solid var(--amber-border)">⭐ ÖNCELİKLİ</span>`:""}
       </div>
-      <div class="detail-main-title">${escapeHtml(item.title)||"Başlıksız"}</div>
-      ${item.topic?`<div style="margin-top:6px"><span style="font-size:11px;font-weight:700;color:var(--text-soft)">BÖLÜM</span> <span style="color:var(--text-soft)">·</span> <span style="font-weight:600;color:var(--text-mid)">${escapeHtml(item.topic)}</span></div>`:""}
+      <div class="detail-main-title">${item.title||"Başlıksız"}</div>
+      ${item.topic?`<div style="margin-top:6px"><span style="font-size:11px;font-weight:700;color:var(--text-soft)">BÖLÜM</span> <span style="color:var(--text-soft)">·</span> <span style="font-weight:600;color:var(--text-mid)">${item.topic}</span></div>`:""}
     </div>
     <div class="detail-grid">
-      <div class="detail-field" style="${locs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">📍 LOKASYONLAR</div><div class="detail-field-val">${locs.map(escapeHtml).join(", ")||"—"}</div></div>
-      <div class="detail-field" style="${docs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">👨‍⚕️ DOKTORLAR</div><div class="detail-field-val">${docs.map(escapeHtml).join(", ")||"—"}</div></div>
+      <div class="detail-field" style="${locs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">📍 LOKASYONLAR</div><div class="detail-field-val">${locs.join(", ")||"—"}</div></div>
+      <div class="detail-field" style="${docs.length>1?'grid-column:1/-1':''}"><div class="detail-field-lbl">👨‍⚕️ DOKTORLAR</div><div class="detail-field-val">${docs.join(", ")||"—"}</div></div>
       <div class="detail-field"><div class="detail-field-lbl">🎬 ÇEKİM TARİHİ</div><div class="detail-field-val">${fmtDate(item.shootDate)}</div></div>
       <div class="detail-field"><div class="detail-field-lbl">📤 PAYLAŞIM TARİHİ</div><div class="detail-field-val" style="color:${dc}">${fmtDate(item.publishDate)}${ds}</div></div>
     </div>
-    ${(() => {
-      const links = Array.isArray(item.links) ? item.links : (item.link ? [item.link] : []);
-      if (links.length === 0) return "";
-      return `<div style="background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:11px;padding:13px 15px;margin-bottom:12px">
-        <div style="font-size:10px;font-weight:700;color:var(--blue);letter-spacing:0.5px;margin-bottom:8px">🔗 HABER LİNKLERİ (${links.length})</div>
-        ${links.map((l, i) => `<div style="margin-bottom:${i < links.length-1 ? '6px' : '0'}">
-          <a href="${escapeHtml(l)}" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue);word-break:break-all;text-decoration:none;font-weight:500;display:block">${i+1}. ${escapeHtml(l)}</a>
-        </div>`).join("")}
-      </div>`;
-    })()}
-    ${item.notes?`<div class="notes-box"><div class="notes-lbl">📝 NOTLAR</div><div class="notes-val">${escapeHtml(item.notes)}</div></div>`:""}
+    ${item.link?`<div style="background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:11px;padding:13px 15px;margin-bottom:12px">
+      <div style="font-size:10px;font-weight:700;color:var(--blue);letter-spacing:0.5px;margin-bottom:6px">🔗 HABER LİNKİ</div>
+      <a href="${item.link}" target="_blank" rel="noopener" style="font-size:13px;color:var(--blue);word-break:break-all;text-decoration:none;font-weight:600">${item.link}</a>
+    </div>`:""}
+    ${item.notes?`<div class="notes-box"><div class="notes-lbl">📝 NOTLAR</div><div class="notes-val">${item.notes}</div></div>`:""}
     <div class="detail-meta">
-      ${item.createdBy?`Oluşturan: <strong>${escapeHtml(item.createdBy)}</strong> · `:""}${ts}
-      ${item.updatedBy && item.updatedBy !== item.createdBy?`<br>Güncelleyen: <strong>${escapeHtml(item.updatedBy)}</strong>`:""}
+      ${item.createdBy?`Oluşturan: <strong>${item.createdBy}</strong> · `:""}${ts}
+      ${item.updatedBy && item.updatedBy !== item.createdBy?`<br>Güncelleyen: <strong>${item.updatedBy}</strong>`:""}
     </div>`;
   document.getElementById("detail-modal").style.display = "flex";
 };
@@ -759,7 +732,7 @@ window.openEditModal = id => {
   document.getElementById("form-modal").style.display = "flex";
 };
 function resetForm() {
-  ["f-topic","f-title","f-shoot-date","f-publish-date","f-notes","f-custom-topic"]
+  ["f-topic","f-title","f-shoot-date","f-publish-date","f-link","f-notes","f-custom-topic"]
     .forEach(id => { const el=document.getElementById(id); if(el) el.value=""; });
   document.getElementById("f-status").value = "waiting";
   document.getElementById("f-priority").checked = false;
@@ -775,11 +748,6 @@ function resetForm() {
     <div class="multi-input-row">
       <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" />
       <button type="button" class="btn btn-icon btn-add" onclick="addDoctorRow()">+</button>
-    </div>`;
-  document.getElementById("links-container").innerHTML = `
-    <div class="multi-input-row">
-      <input class="form-control link-input" type="url" placeholder="https://…" />
-      <button type="button" class="btn btn-icon btn-add" onclick="addLinkRow()">+</button>
     </div>`;
 }
 function fillForm(item) {
@@ -818,23 +786,9 @@ function fillForm(item) {
     const row = document.createElement("div");
     row.className = "multi-input-row";
     row.innerHTML = `
-      <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" value="${escapeHtml(doc||'')}" />
+      <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" value="${doc||''}" />
       <button type="button" class="btn btn-icon ${i===0?"btn-add":"btn-remove"}" onclick="${i===0?"addDoctorRow()":"this.parentElement.remove()"}">${i===0?"+":"−"}</button>`;
     docContainer.appendChild(row);
-  });
-  
-  // Fill links
-  const links = Array.isArray(item.links) ? item.links : (item.link ? [item.link] : []);
-  const linkContainer = document.getElementById("links-container");
-  linkContainer.innerHTML = "";
-  if (links.length === 0) links.push("");
-  links.forEach((link, i) => {
-    const row = document.createElement("div");
-    row.className = "multi-input-row";
-    row.innerHTML = `
-      <input class="form-control link-input" type="url" placeholder="https://…" value="${escapeHtml(link||'')}" />
-      <button type="button" class="btn btn-icon ${i===0?"btn-add":"btn-remove"}" onclick="${i===0?"addLinkRow()":"this.parentElement.remove()"}">${i===0?"+":"−"}</button>`;
-    linkContainer.appendChild(row);
   });
 }
 window.handleTopicChange = () => {
@@ -846,139 +800,43 @@ window.autoStatus = () => {
   if (pd&&st.value==="waiting") st.value="scheduled";
 };
 window.handleSubmit = async () => {
-  // Collect data
+  // Collect locations
   const locations = Array.from(document.querySelectorAll(".location-input")).map(s => s.value).filter(Boolean);
-  const doctors = Array.from(document.querySelectorAll(".doctor-input")).map(i => i.value.trim()).filter(v => v.length > 2);
-  const links = Array.from(document.querySelectorAll(".link-input")).map(i => i.value.trim()).filter(Boolean);
+  // Collect doctors
+  const doctors = Array.from(document.querySelectorAll(".doctor-input")).map(i => i.value.trim()).filter(Boolean);
   
   const title = document.getElementById("f-title").value.trim();
   const shoot = document.getElementById("f-shoot-date").value;
-  const publishDateStr = document.getElementById("f-publish-date").value;
   
-  // VALIDATION 1: Required fields
-  if (locations.length === 0) {
-    showToast("En az 1 lokasyon seçmelisiniz!", "error");
-    return;
-  }
-  if (doctors.length === 0) {
-    showToast("En az 1 doktor eklemelisiniz (min 3 karakter)!", "error");
-    return;
-  }
-  if (!title || title.length < 3) {
-    showToast("Başlık en az 3 karakter olmalı!", "error");
-    return;
-  }
-  if (title.length > 200) {
-    showToast("Başlık en fazla 200 karakter olabilir!", "error");
-    return;
-  }
-  if (!shoot) {
-    showToast("Çekim tarihi zorunludur!", "error");
-    return;
-  }
-  
-  // VALIDATION 2: Date checks
-  const shootDate = new Date(shoot);
-  const today = new Date();
-  today.setHours(0,0,0,0);
-  
-  if (isNaN(shootDate.getTime())) {
-    showToast("Geçersiz çekim tarihi!", "error");
-    return;
-  }
-  
-  if (shootDate > new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)) {
-    showToast("Çekim tarihi 1 yıldan fazla ileride olamaz!", "error");
-    return;
-  }
-  
-  if (publishDateStr) {
-    const publishDate = new Date(publishDateStr);
-    if (isNaN(publishDate.getTime())) {
-      showToast("Geçersiz paylaşım tarihi!", "error");
-      return;
-    }
-    if (publishDate < shootDate) {
-      showToast("Paylaşım tarihi çekim tarihinden önce olamaz!", "error");
-      return;
-    }
-  }
-  
-  // VALIDATION 3: Link format
-  const invalidLinks = links.filter(l => {
-    try {
-      new URL(l);
-      return false;
-    } catch {
-      return true;
-    }
-  });
-  if (invalidLinks.length > 0) {
-    showToast(`Geçersiz link formatı: ${invalidLinks[0]}`, "error");
-    return;
-  }
-  
-  // VALIDATION 4: Duplicate check
-  const uniqueLocs = [...new Set(locations)];
-  const uniqueDocs = [...new Set(doctors)];
-  if (uniqueLocs.length !== locations.length) {
-    showToast("Aynı lokasyonu 2 kez eklediniz!", "error");
-    return;
-  }
-  if (uniqueDocs.length !== doctors.length) {
-    showToast("Aynı doktoru 2 kez eklediniz!", "error");
+  if (locations.length === 0 || doctors.length === 0 || !title || !shoot) {
+    showToast("En az 1 lokasyon, 1 doktor, başlık ve çekim tarihi zorunludur.","error");
     return;
   }
   
   const topicRaw = document.getElementById("f-topic").value;
   const topic = topicRaw==="Diğer" ? document.getElementById("f-custom-topic").value.trim() : topicRaw;
-  const notes = document.getElementById("f-notes").value.trim();
   
   const data = {
-    locations, doctors, links, title, topic,
-    shootDate: shoot,
-    publishDate: publishDateStr,
-    status: document.getElementById("f-status").value,
-    notes: notes,
-    priority: document.getElementById("f-priority").checked,
-    // Legacy fields for compatibility
+    locations, doctors, title, topic,
+    shootDate:   document.getElementById("f-shoot-date").value,
+    publishDate: document.getElementById("f-publish-date").value,
+    link:        document.getElementById("f-link").value.trim(),
+    status:      document.getElementById("f-status").value,
+    notes:       document.getElementById("f-notes").value.trim(),
+    priority:    document.getElementById("f-priority").checked,
+    // Keep legacy fields for compatibility
     location: locations[0] || "",
-    doctor: doctors[0] || "",
-    link: links[0] || "",
+    doctor:   doctors[0]   || "",
   };
   
-  const btn = document.getElementById("submit-btn");
-  btn.disabled = true;
-  btn.textContent = "Kaydediliyor…";
-  
+  const btn=document.getElementById("submit-btn");
+  btn.disabled=true; btn.textContent="Kaydediliyor…";
   try {
-    if (editingId) {
-      await updateNews(editingId, data);
-      showToast("Haber güncellendi.");
-    } else {
-      // Duplicate check for new items
-      const similar = news.filter(n => 
-        n.title.toLowerCase() === title.toLowerCase() && 
-        n.shootDate === shoot
-      );
-      if (similar.length > 0) {
-        if (!confirm("Benzer bir haber zaten var (aynı başlık ve tarih). Yine de eklemek istiyor musunuz?")) {
-          btn.disabled = false;
-          btn.textContent = "✅ Kaydet";
-          return;
-        }
-      }
-      await addNews(data);
-      showToast("Haber eklendi!");
-    }
+    if (editingId) { await updateNews(editingId,data); showToast("Haber güncellendi."); }
+    else           { await addNews(data);              showToast("Haber eklendi!"); }
     closeModal("form-modal");
-  } catch (e) {
-    console.error("Save error:", e);
-    showToast("Kayıt hatası: " + e.message, "error");
-  }
-  
-  btn.disabled = false;
-  btn.textContent = editingId ? "💾 Güncelle" : "✅ Kaydet";
+  } catch(e) { showToast("Hata: "+e.message,"error"); }
+  btn.disabled=false; btn.textContent=editingId?"💾 Güncelle":"✅ Kaydet";
 };
 
 window.closeModal = id => {
@@ -1183,19 +1041,6 @@ window.renderReport = () => {
 };
 
 function renderAll() { renderAlerts(); renderStats(); buildLocChips(); buildStatusChips(); renderList(); }
-
-// INITIALIZE - Run after DOM and Firebase ready
-setTimeout(() => {
-  const loginBtn = document.getElementById("login-btn");
-  const logoutBtn = document.getElementById("logout-btn");
-  const loginName = document.getElementById("login-name");
-  
-  if (loginBtn) loginBtn.addEventListener("click", handleLogin);
-  if (logoutBtn) logoutBtn.addEventListener("click", handleLogout);
-  if (loginName) loginName.addEventListener("keypress", e => { if (e.key === "Enter") handleLogin(); });
-  
-  checkLocalAuth();
-}, 100);
 
 // Auth observer (onAuthStateChanged) handles initialization
 </script>
