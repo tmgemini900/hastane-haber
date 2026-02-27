@@ -332,8 +332,16 @@
           </select>
         </div>
         <div class="form-group form-full"><label>PAYLAŞIM TARİHİ <span style="font-weight:400;color:var(--text-soft)">(girilince otomatik Planlandı olur)</span></label><input class="form-control" type="date" id="f-publish-date" onchange="autoStatus()" /></div>
-        <div class="form-group form-full"><label>HABER LİNKİ <span style="font-weight:400;color:var(--text-soft)">(paylaşılan haberin sosyal medya veya web linki)</span></label><input class="form-control" type="url" id="f-link" placeholder="https://…" /></div>
-        <div class="form-group form-full"><label>NOTLAR / ÖNEMLİ GÜNLER</label><textarea class="form-control" id="f-notes" placeholder="Açıklamalar, önemli günler, hatırlatmalar…"></textarea></div>
+        <div class="form-group form-full">
+          <label>HABER LİNKLERİ <span style="font-weight:400;color:var(--text-soft)">(sosyal medya, web vb. birden fazla ekleyebilirsiniz)</span></label>
+          <div class="multi-input-container" id="links-container">
+            <div class="multi-input-row">
+              <input class="form-control link-input" type="url" placeholder="https://…" />
+              <button type="button" class="btn btn-icon btn-add" onclick="addLinkRow()">+</button>
+            </div>
+          </div>
+        </div>
+        <div class="form-group form-full"><label>NOTLAR / ÖNEMLİ GÜNLER</label><textarea class="form-control" id="f-notes" placeholder="Açıklamalar, önemli günler, hatırlatmalar… (max 500 karakter)" maxlength="500"></textarea></div>
         <div class="form-group form-full"><label class="checkbox-row"><input type="checkbox" id="f-priority" /><span>⭐ Öncelikli haber olarak işaretle</span></label></div>
       </div>
     </div>
@@ -520,19 +528,49 @@ window.addDoctorRow = () => {
   container.appendChild(row);
 };
 
+// MULTI LINK
+window.addLinkRow = () => {
+  const container = document.getElementById("links-container");
+  if (container.children.length >= 30) {
+    showToast("Maksimum 30 link ekleyebilirsiniz.", "error");
+    return;
+  }
+  const row = document.createElement("div");
+  row.className = "multi-input-row";
+  row.innerHTML = `
+    <input class="form-control link-input" type="url" placeholder="https://…" />
+    <button type="button" class="btn btn-icon btn-remove" onclick="this.parentElement.remove()">−</button>`;
+  container.appendChild(row);
+};
+
 // REAL-TIME
 function startListener() {
   onSnapshot(query(col, orderBy("createdAt","desc")), snap => {
     news = snap.docs.map(d => ({ id:d.id, ...d.data() }));
     document.getElementById("loading-screen").style.display = "none";
-    document.getElementById("sync-dot").style.background   = "var(--green)";
-    document.getElementById("sync-label").textContent      = "Canlı";
+    setSyncState(true);
     renderAll();
     if (openDetailId && document.getElementById("detail-modal").style.display !== "none") openDetail(openDetailId);
-  }, () => {
-    document.getElementById("sync-dot").style.background = "var(--red)";
-    document.getElementById("sync-label").textContent    = "Bağlantı yok";
+  }, () => setSyncState(false));
+  
+  // Network monitoring
+  window.addEventListener('online', () => {
+    setSyncState(true);
+    showToast("İnternet bağlantısı geri geldi!", "info");
   });
+  window.addEventListener('offline', () => {
+    setSyncState(false);
+    showToast("İnternet bağlantısı yok!", "error");
+  });
+}
+
+function setSyncState(ok) {
+  const dot = document.getElementById("sync-dot");
+  const lbl = document.getElementById("sync-label");
+  if (!dot || !lbl) return;
+  dot.style.background = ok ? "var(--green)" : "var(--red)";
+  lbl.textContent = ok ? "Canlı" : "Bağlantı yok";
+  dot.style.animation = ok ? "pulse 2s infinite" : "none";
 }
 
 // CRUD
@@ -596,10 +634,23 @@ function renderAlerts() {
 function renderList() {
   const q = document.getElementById("search-input").value.toLowerCase();
   const filtered = news.filter(n => {
-    const locOk  = filterLoc==="Tümü"    || n.location===filterLoc;
+    const locOk  = filterLoc==="Tümü"    || n.location===filterLoc || (Array.isArray(n.locations) && n.locations.includes(filterLoc));
     const stOk   = filterStatus==="Tümü" || n.status===filterStatus;
-    const srchOk = !q || [n.title,n.doctor,n.topic,n.location].some(v=>v&&v.toLowerCase().includes(q));
-    return locOk&&stOk&&srchOk;
+    
+    // Search in title, topic, locations, and doctors
+    if (!q) return locOk && stOk;
+    
+    const searchFields = [
+      n.title,
+      n.topic,
+      n.location,
+      n.doctor,
+      ...(Array.isArray(n.locations) ? n.locations : []),
+      ...(Array.isArray(n.doctors) ? n.doctors : [])
+    ];
+    
+    const srchOk = searchFields.some(v => v && v.toLowerCase().includes(q));
+    return locOk && stOk && srchOk;
   });
   const grid = document.getElementById("news-grid");
   if (!filtered.length) {
@@ -665,10 +716,16 @@ window.openDetail = id => {
       <div class="detail-field"><div class="detail-field-lbl">🎬 ÇEKİM TARİHİ</div><div class="detail-field-val">${fmtDate(item.shootDate)}</div></div>
       <div class="detail-field"><div class="detail-field-lbl">📤 PAYLAŞIM TARİHİ</div><div class="detail-field-val" style="color:${dc}">${fmtDate(item.publishDate)}${ds}</div></div>
     </div>
-    ${item.link?`<div style="background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:11px;padding:13px 15px;margin-bottom:12px">
-      <div style="font-size:10px;font-weight:700;color:var(--blue);letter-spacing:0.5px;margin-bottom:6px">🔗 HABER LİNKİ</div>
-      <a href="${escapeHtml(item.link)}" target="_blank" rel="noopener" style="font-size:13px;color:var(--blue);word-break:break-all;text-decoration:none;font-weight:600">${escapeHtml(item.link)}</a>
-    </div>`:""}
+    ${(() => {
+      const links = Array.isArray(item.links) ? item.links : (item.link ? [item.link] : []);
+      if (links.length === 0) return "";
+      return `<div style="background:var(--blue-bg);border:1.5px solid var(--blue-border);border-radius:11px;padding:13px 15px;margin-bottom:12px">
+        <div style="font-size:10px;font-weight:700;color:var(--blue);letter-spacing:0.5px;margin-bottom:8px">🔗 HABER LİNKLERİ (${links.length})</div>
+        ${links.map((l, i) => `<div style="margin-bottom:${i < links.length-1 ? '6px' : '0'}">
+          <a href="${escapeHtml(l)}" target="_blank" rel="noopener" style="font-size:12px;color:var(--blue);word-break:break-all;text-decoration:none;font-weight:500;display:block">${i+1}. ${escapeHtml(l)}</a>
+        </div>`).join("")}
+      </div>`;
+    })()}
     ${item.notes?`<div class="notes-box"><div class="notes-lbl">📝 NOTLAR</div><div class="notes-val">${escapeHtml(item.notes)}</div></div>`:""}
     <div class="detail-meta">
       ${item.createdBy?`Oluşturan: <strong>${escapeHtml(item.createdBy)}</strong> · `:""}${ts}
@@ -702,7 +759,7 @@ window.openEditModal = id => {
   document.getElementById("form-modal").style.display = "flex";
 };
 function resetForm() {
-  ["f-topic","f-title","f-shoot-date","f-publish-date","f-link","f-notes","f-custom-topic"]
+  ["f-topic","f-title","f-shoot-date","f-publish-date","f-notes","f-custom-topic"]
     .forEach(id => { const el=document.getElementById(id); if(el) el.value=""; });
   document.getElementById("f-status").value = "waiting";
   document.getElementById("f-priority").checked = false;
@@ -718,6 +775,11 @@ function resetForm() {
     <div class="multi-input-row">
       <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" />
       <button type="button" class="btn btn-icon btn-add" onclick="addDoctorRow()">+</button>
+    </div>`;
+  document.getElementById("links-container").innerHTML = `
+    <div class="multi-input-row">
+      <input class="form-control link-input" type="url" placeholder="https://…" />
+      <button type="button" class="btn btn-icon btn-add" onclick="addLinkRow()">+</button>
     </div>`;
 }
 function fillForm(item) {
@@ -756,9 +818,23 @@ function fillForm(item) {
     const row = document.createElement("div");
     row.className = "multi-input-row";
     row.innerHTML = `
-      <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" value="${doc||''}" />
+      <input class="form-control doctor-input" placeholder="Prof. Dr. Ad Soyad…" value="${escapeHtml(doc||'')}" />
       <button type="button" class="btn btn-icon ${i===0?"btn-add":"btn-remove"}" onclick="${i===0?"addDoctorRow()":"this.parentElement.remove()"}">${i===0?"+":"−"}</button>`;
     docContainer.appendChild(row);
+  });
+  
+  // Fill links
+  const links = Array.isArray(item.links) ? item.links : (item.link ? [item.link] : []);
+  const linkContainer = document.getElementById("links-container");
+  linkContainer.innerHTML = "";
+  if (links.length === 0) links.push("");
+  links.forEach((link, i) => {
+    const row = document.createElement("div");
+    row.className = "multi-input-row";
+    row.innerHTML = `
+      <input class="form-control link-input" type="url" placeholder="https://…" value="${escapeHtml(link||'')}" />
+      <button type="button" class="btn btn-icon ${i===0?"btn-add":"btn-remove"}" onclick="${i===0?"addLinkRow()":"this.parentElement.remove()"}">${i===0?"+":"−"}</button>`;
+    linkContainer.appendChild(row);
   });
 }
 window.handleTopicChange = () => {
@@ -770,43 +846,139 @@ window.autoStatus = () => {
   if (pd&&st.value==="waiting") st.value="scheduled";
 };
 window.handleSubmit = async () => {
-  // Collect locations
+  // Collect data
   const locations = Array.from(document.querySelectorAll(".location-input")).map(s => s.value).filter(Boolean);
-  // Collect doctors
-  const doctors = Array.from(document.querySelectorAll(".doctor-input")).map(i => i.value.trim()).filter(Boolean);
+  const doctors = Array.from(document.querySelectorAll(".doctor-input")).map(i => i.value.trim()).filter(v => v.length > 2);
+  const links = Array.from(document.querySelectorAll(".link-input")).map(i => i.value.trim()).filter(Boolean);
   
   const title = document.getElementById("f-title").value.trim();
   const shoot = document.getElementById("f-shoot-date").value;
+  const publishDateStr = document.getElementById("f-publish-date").value;
   
-  if (locations.length === 0 || doctors.length === 0 || !title || !shoot) {
-    showToast("En az 1 lokasyon, 1 doktor, başlık ve çekim tarihi zorunludur.","error");
+  // VALIDATION 1: Required fields
+  if (locations.length === 0) {
+    showToast("En az 1 lokasyon seçmelisiniz!", "error");
+    return;
+  }
+  if (doctors.length === 0) {
+    showToast("En az 1 doktor eklemelisiniz (min 3 karakter)!", "error");
+    return;
+  }
+  if (!title || title.length < 3) {
+    showToast("Başlık en az 3 karakter olmalı!", "error");
+    return;
+  }
+  if (title.length > 200) {
+    showToast("Başlık en fazla 200 karakter olabilir!", "error");
+    return;
+  }
+  if (!shoot) {
+    showToast("Çekim tarihi zorunludur!", "error");
+    return;
+  }
+  
+  // VALIDATION 2: Date checks
+  const shootDate = new Date(shoot);
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  
+  if (isNaN(shootDate.getTime())) {
+    showToast("Geçersiz çekim tarihi!", "error");
+    return;
+  }
+  
+  if (shootDate > new Date(Date.now() + 365 * 24 * 60 * 60 * 1000)) {
+    showToast("Çekim tarihi 1 yıldan fazla ileride olamaz!", "error");
+    return;
+  }
+  
+  if (publishDateStr) {
+    const publishDate = new Date(publishDateStr);
+    if (isNaN(publishDate.getTime())) {
+      showToast("Geçersiz paylaşım tarihi!", "error");
+      return;
+    }
+    if (publishDate < shootDate) {
+      showToast("Paylaşım tarihi çekim tarihinden önce olamaz!", "error");
+      return;
+    }
+  }
+  
+  // VALIDATION 3: Link format
+  const invalidLinks = links.filter(l => {
+    try {
+      new URL(l);
+      return false;
+    } catch {
+      return true;
+    }
+  });
+  if (invalidLinks.length > 0) {
+    showToast(`Geçersiz link formatı: ${invalidLinks[0]}`, "error");
+    return;
+  }
+  
+  // VALIDATION 4: Duplicate check
+  const uniqueLocs = [...new Set(locations)];
+  const uniqueDocs = [...new Set(doctors)];
+  if (uniqueLocs.length !== locations.length) {
+    showToast("Aynı lokasyonu 2 kez eklediniz!", "error");
+    return;
+  }
+  if (uniqueDocs.length !== doctors.length) {
+    showToast("Aynı doktoru 2 kez eklediniz!", "error");
     return;
   }
   
   const topicRaw = document.getElementById("f-topic").value;
   const topic = topicRaw==="Diğer" ? document.getElementById("f-custom-topic").value.trim() : topicRaw;
+  const notes = document.getElementById("f-notes").value.trim();
   
   const data = {
-    locations, doctors, title, topic,
-    shootDate:   document.getElementById("f-shoot-date").value,
-    publishDate: document.getElementById("f-publish-date").value,
-    link:        document.getElementById("f-link").value.trim(),
-    status:      document.getElementById("f-status").value,
-    notes:       document.getElementById("f-notes").value.trim(),
-    priority:    document.getElementById("f-priority").checked,
-    // Keep legacy fields for compatibility
+    locations, doctors, links, title, topic,
+    shootDate: shoot,
+    publishDate: publishDateStr,
+    status: document.getElementById("f-status").value,
+    notes: notes,
+    priority: document.getElementById("f-priority").checked,
+    // Legacy fields for compatibility
     location: locations[0] || "",
-    doctor:   doctors[0]   || "",
+    doctor: doctors[0] || "",
+    link: links[0] || "",
   };
   
-  const btn=document.getElementById("submit-btn");
-  btn.disabled=true; btn.textContent="Kaydediliyor…";
+  const btn = document.getElementById("submit-btn");
+  btn.disabled = true;
+  btn.textContent = "Kaydediliyor…";
+  
   try {
-    if (editingId) { await updateNews(editingId,data); showToast("Haber güncellendi."); }
-    else           { await addNews(data);              showToast("Haber eklendi!"); }
+    if (editingId) {
+      await updateNews(editingId, data);
+      showToast("Haber güncellendi.");
+    } else {
+      // Duplicate check for new items
+      const similar = news.filter(n => 
+        n.title.toLowerCase() === title.toLowerCase() && 
+        n.shootDate === shoot
+      );
+      if (similar.length > 0) {
+        if (!confirm("Benzer bir haber zaten var (aynı başlık ve tarih). Yine de eklemek istiyor musunuz?")) {
+          btn.disabled = false;
+          btn.textContent = "✅ Kaydet";
+          return;
+        }
+      }
+      await addNews(data);
+      showToast("Haber eklendi!");
+    }
     closeModal("form-modal");
-  } catch(e) { showToast("Hata: "+e.message,"error"); }
-  btn.disabled=false; btn.textContent=editingId?"💾 Güncelle":"✅ Kaydet";
+  } catch (e) {
+    console.error("Save error:", e);
+    showToast("Kayıt hatası: " + e.message, "error");
+  }
+  
+  btn.disabled = false;
+  btn.textContent = editingId ? "💾 Güncelle" : "✅ Kaydet";
 };
 
 window.closeModal = id => {
